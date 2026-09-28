@@ -1,0 +1,28 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Sistema operativo
+.DS_Store
+
+# Variables de entorno y secretos (documentar las variables en .env.example)
+.env
+.env.*
+!.env.example
+
+# Claude Code: configuración personal (las skills del proyecto sí se versionan)
+.claude/settings.local.json
+
+# Gradle / Kotlin
+.gradle/
+build/
+out/
+.kotlin/
+
+# Node (UI)
+node_modules/
+dist/
+
+# Logs
+*.log

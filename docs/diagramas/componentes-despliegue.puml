@@ -1,0 +1,64 @@
+@startuml componentes-despliegue
+' Vista de despliegue: cada módulo corre como un servicio independiente
+' que expone una API HTTP, con su propia base de datos cuando la necesita.
+' El código de los snippets se guarda en un bucket, no en Postgres.
+
+title Snippet Searcher - Vista de despliegue
+skinparam componentStyle uml2
+
+actor Usuario
+
+cloud "Auth0" as Auth0
+
+node "UI (React)" as UINode {
+  component UI
+}
+
+node "Permission Service" <<HTTP>> {
+  component Permisos
+}
+database "Postgres\n(permisos)" as PermDB
+
+node "Snippet Service" <<HTTP>> {
+  component Snippets
+}
+database "Postgres\n(snippets)" as SnipDB
+
+node "PrintScript Service" <<HTTP>> as PSNode {
+  component PrintScript
+  component "PrintScript Library" as PSLib
+}
+
+node "Otros lenguajes (futuro)" <<HTTP>> as OtrosNode {
+  component "Python / TypeScript / Go / Ruby" as Otros
+}
+
+interface "Snippet Storage" as Storage
+node "Bucket Storage Service" <<HTTP>> {
+  component "Bucket Storage" as BucketSvc
+}
+storage "Bucket" as Bucket
+
+Usuario --> UI
+UI --> Auth0 : login (OAuth)
+UI --> Snippets : HTTP
+UI --> Permisos : HTTP
+
+Snippets --> Permisos : HTTP
+Snippets --> PrintScript : HTTP
+Snippets --> SnipDB
+Permisos --> PermDB
+
+PrintScript --> PSLib : usa
+
+Snippets ..> Storage : HTTP
+PrintScript ..> Storage : HTTP
+Otros ..> Storage : HTTP
+
+BucketSvc -up- Storage
+BucketSvc --> Bucket
+
+Snippets ..> Auth0 : valida JWT
+Permisos ..> Auth0 : valida JWT
+
+@enduml
