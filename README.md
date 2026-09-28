@@ -269,10 +269,41 @@ La cola de mensajes para el formateo y linting masivo (#12, #15) no aparece en l
 5. Lintea el snippet y actualiza su estado de validez.
 6. Corre los tests del snippet, si tiene (#16).
 
+## Decisiones técnicas
+
+Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no se asume: se consulta con el equipo antes de implementarlo, y la decisión se registra acá.
+
+| Tema | Estado | Detalle |
+|---|---|---|
+| Arquitectura de servicios | ✅ Definido | Ver [Arquitectura](#arquitectura) y [Dependencias entre módulos](#dependencias-entre-módulos) |
+| Autenticación | ✅ Definido | Auth0 (lo indica la cátedra) |
+| Lenguaje, framework y build | ⏳ Pendiente | Referencia, no decisión: el proyecto PrintScript se hizo con **Gradle + Kotlin (JVM)** |
+| Librería de PrintScript | ⏳ Pendiente | Cuál se usa (propia o de la cátedra), versión y dónde está publicada |
+| Contrato con la UI de la cátedra | ⏳ Pendiente | Repo de la UI, endpoints y DTOs que espera |
+| Snippet Storage (bucket) | ⏳ Pendiente | Si lo provee la cátedra o se implementa |
+| Base de datos | ⏳ Pendiente | Postgres según el pizarrón; falta confirmar versión y herramienta de migraciones |
+| Tests y calidad | ⏳ Pendiente | Framework de tests, linter y cobertura mínima |
+| Cola de mensajes | ⏳ Pendiente | La cátedra la explica más adelante (#12, #15) |
+
+## Flujo de trabajo
+
+```
+feature/us-<n>-<descripcion>  ──PR──▶  dev  ──PR──▶  main
+```
+
+1. Cada user story o tarea se desarrolla en su propia rama, creada desde `dev`.
+2. Se abre un PR hacia `dev`. **Las correcciones de los PRs las hace Martina Cousido**, con la skill [`corregir-prs`](.claude/skills/corregir-prs/SKILL.md).
+3. Una vez aprobado y mergeado en `dev`, el cambio pasa a `main` mediante un PR `dev` → `main`.
+4. Nadie pushea directo a `dev` ni a `main`.
+
+Commits en español con formato `tipo(scope): resumen`. Detalle en [`CLAUDE.md`](CLAUDE.md).
+
 ## Estructura del repositorio
 
 ```
 .
+├── .claude/skills/                    # Skills del proyecto para Claude Code
+├── CLAUDE.md                          # Reglas para Claude Code en este repo
 ├── docs/
 │   ├── diagramas/                     # Diagramas de componentes (PlantUML + PNG)
 │   ├── PizarronArquitecturaDiagrama.jpeg
