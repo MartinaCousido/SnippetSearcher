@@ -25,7 +25,7 @@ A lo largo del cuatrimestre se irán sumando requerimientos no funcionales.
 - [ ] Arquitectura de la plataforma: UI web, N servicios, bases de datos, etc.
 - [ ] User stories que reflejen las funcionalidades.
 - [x] Diagrama de componentes de la arquitectura ([ver](#arquitectura)).
-- [ ] Diagramas de secuencia de los workflows más importantes.
+- [x] Diagramas de secuencia de los workflows más importantes.
 
 ## User stories
 
@@ -205,6 +205,25 @@ Las conexiones `memory` indican que, a nivel lógico, los módulos se llaman com
 ![Vista de despliegue](docs/diagramas/componentes-despliegue.png)
 Cada módulo se despliega como un servicio independiente con API HTTP. Snippets y Permisos tienen **cada uno su propio Postgres**. El **código de los snippets no va a Postgres**: se guarda en un bucket, detrás de la interfaz `Snippet Storage`, y tanto Snippets como los servicios de lenguaje lo leen desde ahí.
 
+### Diagramas de secuencia
+
+Los flujos más importantes, en PlantUML dentro de [`docs/diagramas/flujos/`](docs/diagramas/flujos). Los mensajes están a nivel lógico (por ejemplo `validar(código, versión)`): los endpoints y formatos concretos se definen cuando se cierren los contratos entre servicios (ver [Decisiones técnicas](#decisiones-técnicas)). Las notas **A confirmar** / **A definir** marcan decisiones pendientes.
+
+| Flujo | User stories | Qué muestra |
+|---|---|---|
+| [Crear snippet](docs/diagramas/flujos/secuencia-crear-snippet.puml) | US-1, US-3 | Validación con errores de regla, línea y columna; guardado del código en Storage y de los metadatos en Postgres; registro del owner en Permisos |
+| [Compartir snippet](docs/diagramas/flujos/secuencia-compartir-snippet.puml) | US-7 | Búsqueda de usuarios a medida que se escribe; solo el owner comparte; el destino obtiene solo lectura |
+| [Actualizar snippet](docs/diagramas/flujos/secuencia-actualizar-snippet.puml) | US-2, US-4, US-16 | Chequeo de permiso de escritura, validación y ejecución automática de los tests, sin revertir el update |
+| [Linting automático](docs/diagramas/flujos/secuencia-linting-automatico.puml) | US-14, US-15 | Respuesta inmediata al administrador y linteo en segundo plano, tolerante a fallos. El mismo patrón aplica al formateo automático (US-12) y a la re-validación por nueva versión del parser |
+
+![Crear snippet](docs/diagramas/flujos/secuencia-crear-snippet.png)
+
+![Compartir snippet](docs/diagramas/flujos/secuencia-compartir-snippet.png)
+
+![Actualizar snippet](docs/diagramas/flujos/secuencia-actualizar-snippet.png)
+
+![Linting automático](docs/diagramas/flujos/secuencia-linting-automatico.png)
+
 ## Roles
 Los roles de las user stories describen **puntos de vista**, no permisos distintos en el sistema. Hoy cualquier usuario autenticado puede hacer todo sobre sus propios snippets. La única distinción real que el sistema aplica es **owner vs. usuario con quien se compartió el snippet**.
 
@@ -317,7 +336,7 @@ Los `.puml` son la fuente; los `.png` se generan a partir de ellos. Después de 
 
 ```bash
 # con PlantUML instalado (brew install plantuml)
-plantuml -tpng docs/diagramas/*.puml
+plantuml -tpng docs/diagramas/*.puml docs/diagramas/flujos/*.puml
 ```
 
 También se pueden previsualizar con la extensión de PlantUML de IntelliJ o VS Code.

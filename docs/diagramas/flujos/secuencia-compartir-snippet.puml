@@ -1,0 +1,45 @@
+@startuml secuencia-compartir-snippet
+' Compartir un snippet con otro usuario (US-7).
+' Mensajes a nivel lógico: los contratos HTTP están pendientes (README → Decisiones técnicas).
+
+title Compartir snippet (US-7)
+autonumber
+skinparam sequenceMessageAlign center
+
+actor "Owner" as Owner
+participant UI
+participant "User\n(sobre Auth0)" as U
+participant "Permission Service" as P
+database "Postgres\n(permisos)" as PDB
+
+Owner -> UI : abre "compartir" en su snippet
+
+loop a medida que escribe
+  Owner -> UI : escribe parte del nombre
+  UI -> U : buscar usuarios(texto)
+  U --> UI : usuarios que coinciden
+  UI --> Owner : muestra la lista filtrada
+end
+note right of U
+  A definir: en qué servicio vive el módulo User.
+end note
+
+Owner -> UI : elige al usuario destino
+UI -> P : compartir(snippetId, usuarioDestino, JWT)
+note over P : valida el JWT de Auth0\ny obtiene el userId
+P -> PDB : ¿userId es owner de snippetId?
+
+alt no es owner
+  P --> UI : 403
+  UI --> Owner : "no tenés permiso para compartir este snippet"
+else es owner
+  P -> PDB : guardar permiso de LECTURA\n(snippetId, usuarioDestino)
+  P --> UI : 200
+  UI --> Owner : snippet compartido
+end
+
+note over P, PDB
+  El usuario destino obtiene solo lectura
+  sobre el snippet y sus tests.
+end note
+@enduml

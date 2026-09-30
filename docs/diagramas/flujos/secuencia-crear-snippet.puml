@@ -1,0 +1,46 @@
+@startuml secuencia-crear-snippet
+' Crear un snippet desde archivo o desde el editor (US-1, US-3).
+' Mensajes a nivel lógico: los contratos HTTP están pendientes (README → Decisiones técnicas).
+
+title Crear snippet (US-1, US-3)
+autonumber
+skinparam sequenceMessageAlign center
+
+actor Usuario
+participant UI
+participant "Snippet Service" as S
+participant "PrintScript Service" as PS
+participant "Snippet Storage" as ST
+database "Postgres\n(snippets)" as DB
+participant "Permission Service" as P
+
+Usuario -> UI : nombre, descripción, lenguaje, versión\ny código (archivo o editor)
+UI -> S : crear snippet (datos + código, JWT)
+note over S : valida el JWT de Auth0\ny obtiene el userId
+
+S -> PS : validar(código, versión)
+note right of PS
+  A confirmar: el código viaja en el pedido
+  porque todavía no está guardado.
+end note
+
+alt código inválido
+  PS --> S : errores (regla, línea, columna)
+  S --> UI : 400 + errores
+  UI --> Usuario : muestra regla, línea y columna
+else código válido
+  PS --> S : válido
+  S -> ST : guardar(código)
+  ST --> S : referencia
+  S -> DB : guardar metadatos + referencia
+  S -> P : registrar owner(snippetId, userId)
+  P --> S : registrado
+  S --> UI : 201 snippet creado
+  UI --> Usuario : muestra el snippet
+end
+
+note over S, P
+  A definir: qué pasa si falla un paso intermedio
+  (por ejemplo, Permisos no responde después de guardar).
+end note
+@enduml

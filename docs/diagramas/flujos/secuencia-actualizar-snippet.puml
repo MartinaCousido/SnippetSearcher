@@ -1,0 +1,55 @@
+@startuml secuencia-actualizar-snippet
+' Actualizar un snippet y correr sus tests automáticamente (US-2, US-4, US-16).
+' Mensajes a nivel lógico: los contratos HTTP están pendientes (README → Decisiones técnicas).
+
+title Actualizar snippet y correr tests automáticamente (US-2, US-4, US-16)
+autonumber
+skinparam sequenceMessageAlign center
+
+actor Usuario
+participant UI
+participant "Snippet Service" as S
+participant "Permission Service" as P
+participant "PrintScript Service" as PS
+participant "Snippet Storage" as ST
+database "Postgres\n(snippets)" as DB
+
+Usuario -> UI : edita datos y/o código
+UI -> S : actualizar snippet (snippetId, datos, código, JWT)
+note over S : valida el JWT de Auth0\ny obtiene el userId
+
+S -> P : ¿puede escribir?(snippetId, userId)
+alt no es owner
+  P --> S : no
+  S --> UI : 403
+  UI --> Usuario : sin permiso de edición
+else es owner
+  P --> S : sí
+  S -> PS : validar(código, versión)
+  alt código inválido
+    PS --> S : errores (regla, línea, columna)
+    S --> UI : 400 + errores
+    UI --> Usuario : muestra regla, línea y columna
+  else código válido
+    PS --> S : válido
+    S -> ST : guardar(código)
+    S -> DB : actualizar metadatos
+    S --> UI : 200 snippet actualizado
+    UI --> Usuario : muestra el snippet
+
+    == Tests automáticos (US-16) ==
+    loop por cada test del snippet
+      S -> PS : ejecutar(referencia, inputs)
+      PS -> ST : leer(referencia)
+      ST --> PS : código
+      PS --> S : outputs
+      S -> S : comparar outputs con los esperados
+      S -> DB : guardar resultado (PASSED / FAILED)
+    end
+  end
+end
+
+note over S, DB
+  El resultado de los tests no revierte la actualización.
+end note
+@enduml

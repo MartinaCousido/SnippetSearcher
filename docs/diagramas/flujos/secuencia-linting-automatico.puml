@@ -1,0 +1,47 @@
+@startuml secuencia-linting-automatico
+' Cambiar reglas de linting y re-evaluar todos los snippets en segundo plano (US-14, US-15).
+' El mismo patrón aplica al formateo automático (US-11, US-12) y a la re-validación
+' por nueva versión del parser.
+' La cola la explica la cátedra más adelante: tecnología a definir.
+
+title Cambiar reglas de linting y lintear automáticamente (US-14, US-15)
+autonumber
+skinparam sequenceMessageAlign center
+
+actor Administrador
+participant UI
+participant "Snippet Service" as S
+database "Postgres\n(snippets)" as DB
+queue "Cola\n(a definir)" as Q
+participant "PrintScript Service" as PS
+participant "Snippet Storage" as ST
+
+Administrador -> UI : activa o desactiva reglas de linting
+UI -> S : actualizar reglas(reglas, JWT)
+note over S : valida el JWT de Auth0\ny obtiene el userId
+S -> DB : guardar configuración de reglas
+S -> DB : marcar sus snippets como PENDING
+S -> Q : publicar un pedido de lint por snippet
+S --> UI : 200 (no espera el linteo)
+UI --> Administrador : reglas guardadas,\nsnippets en evaluación
+
+== En segundo plano ==
+loop por cada pedido en la cola
+  Q -> PS : lint(snippetId, referencia, reglas)
+  PS -> ST : leer(referencia)
+  ST --> PS : código
+  alt lint ejecutado
+    PS -> Q : resultado(snippetId, violaciones)
+    Q -> S : resultado
+    S -> DB : lintStatus = COMPLIANT / NOT_COMPLIANT
+  else falla al procesar el snippet
+    Q -> Q : reintentar
+    note right of Q
+      Tras N intentos: lintStatus = FAILED
+      y se sigue con el próximo snippet.
+      Si se cae el proceso, se retoma
+      desde los pedidos pendientes.
+    end note
+  end
+end
+@enduml
