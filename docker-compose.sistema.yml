@@ -1,0 +1,65 @@
+# Levanta el sistema completo: cada servicio con su propia base de datos.
+# Requiere el repo SnippetPermission clonado al lado de este (../SnippetPermission).
+# Uso: cp .env.example .env && docker compose -f docker-compose.sistema.yml up --build
+name: snippet-searcher
+
+services:
+  snippet-service:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://snippets-db:5432/${SNIPPETS_DB_NAME:?Falta SNIPPETS_DB_NAME, copiá .env.example a .env}
+      DB_USER: ${SNIPPETS_DB_USER:?Falta SNIPPETS_DB_USER, copiá .env.example a .env}
+      DB_PASSWORD: ${SNIPPETS_DB_PASSWORD:?Falta SNIPPETS_DB_PASSWORD, copiá .env.example a .env}
+    depends_on:
+      snippets-db:
+        condition: service_healthy
+
+  snippets-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${SNIPPETS_DB_NAME}
+      POSTGRES_USER: ${SNIPPETS_DB_USER}
+      POSTGRES_PASSWORD: ${SNIPPETS_DB_PASSWORD}
+    ports:
+      - "5433:5432"
+    volumes:
+      - snippets-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  permission-service:
+    build: ../SnippetPermission
+    ports:
+      - "8081:8080"
+    environment:
+      DB_URL: jdbc:postgresql://permisos-db:5432/${PERMISOS_DB_NAME:?Falta PERMISOS_DB_NAME, copiá .env.example a .env}
+      DB_USER: ${PERMISOS_DB_USER:?Falta PERMISOS_DB_USER, copiá .env.example a .env}
+      DB_PASSWORD: ${PERMISOS_DB_PASSWORD:?Falta PERMISOS_DB_PASSWORD, copiá .env.example a .env}
+    depends_on:
+      permisos-db:
+        condition: service_healthy
+
+  permisos-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${PERMISOS_DB_NAME}
+      POSTGRES_USER: ${PERMISOS_DB_USER}
+      POSTGRES_PASSWORD: ${PERMISOS_DB_PASSWORD}
+    ports:
+      - "5434:5432"
+    volumes:
+      - permisos-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  snippets-data:
+  permisos-data:
