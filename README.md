@@ -277,12 +277,15 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 |---|---|---|
 | Arquitectura de servicios | ✅ Definido | Ver [Arquitectura](#arquitectura) y [Dependencias entre módulos](#dependencias-entre-módulos) |
 | Autenticación | ✅ Definido | Auth0 (lo indica la cátedra) |
-| Lenguaje, framework y build | ⏳ Pendiente | Referencia, no decisión: el proyecto PrintScript se hizo con **Gradle + Kotlin (JVM)** |
+| Lenguaje, framework y build | ✅ Definido | **Java 21 + Spring Boot 4.1.1 + Gradle 9.8** (Groovy DSL, con wrapper) |
+| Contenedores | ✅ Definido | Un `Dockerfile` por servicio; `docker-compose.yml` por repo y `docker-compose.sistema.yml` en este repo, que incluye los de cada repo para levantar todo. Todos comparten el proyecto `snippet-searcher`, así que los contenedores y los datos son los mismos se levante un servicio solo o el sistema. Ver [Cómo levantarlo](#cómo-levantarlo) |
 | Librería de PrintScript | ⏳ Pendiente | Cuál se usa (propia o de la cátedra), versión y dónde está publicada |
 | Contrato con la UI de la cátedra | ⏳ Pendiente | Repo de la UI, endpoints y DTOs que espera |
 | Snippet Storage (bucket) | ⏳ Pendiente | Si lo provee la cátedra o se implementa |
-| Base de datos | ⏳ Pendiente | Postgres según el pizarrón; falta confirmar versión y herramienta de migraciones |
-| Tests y calidad | ⏳ Pendiente | Framework de tests, linter y cobertura mínima |
+| Base de datos | ✅ Definido | **PostgreSQL 17, un contenedor por servicio** (`snippets` y `permisos`). Ningún servicio accede a la base de otro |
+| Migraciones | ⏳ Pendiente | Herramienta a definir (por ejemplo Flyway). Mientras tanto, `ddl-auto: none` |
+| Framework de tests | ✅ Definido | **JUnit 5**, con los starters de test de Spring Boot (lo que genera Spring Initializr). Los tests necesitan la base levantada. Ver [Correr los tests](#correr-los-tests) |
+| Linter y cobertura | ⏳ Pendiente | Linter y cobertura mínima |
 | Cola de mensajes | ⏳ Pendiente | La cátedra la explica más adelante (#12, #15) |
 
 ## Flujo de trabajo
@@ -298,6 +301,55 @@ feature/us-<n>-<descripcion>  ──PR──▶  dev  ──PR──▶  main
 
 Commits en español con formato `tipo(scope): resumen`. Detalle en [`CLAUDE.md`](CLAUDE.md).
 
+## Cómo levantarlo
+
+Requisitos: Docker Desktop abierto. No hace falta instalar Java ni Gradle: se compila dentro de Docker.
+
+Primero, crear el archivo `.env` con las variables (no se commitea):
+
+```bash
+cp .env.example .env
+```
+
+Si se quiere cambiar la contraseña de la base, hay que hacerlo en el `.env` **antes del primer arranque**: Postgres la toma solo cuando crea la base por primera vez. Para cambiarla después hay que borrar los datos (`down -v`) y volver a levantar.
+
+**Sistema completo** (Snippet Service + Permission Service, cada uno con su base). Requiere el repo [SnippetPermission](https://github.com/MartinaCousido/SnippetPermission) clonado al lado de este (`../SnippetPermission`), con su propio `.env` creado:
+
+```bash
+docker compose -f docker-compose.sistema.yml up --build
+```
+
+**Solo Snippet Service** y su base:
+
+```bash
+docker compose up --build
+```
+
+`docker-compose.sistema.yml` no repite la definición de los servicios: incluye el `docker-compose.yml` de cada repo, y cada uno toma las variables de su propio `.env`. Todos usan el mismo proyecto de Docker (`snippet-searcher`), así que los contenedores y los datos son los mismos se levante un servicio solo o el sistema completo.
+
+| Contenedor | URL / puerto en tu máquina |
+|---|---|
+| Snippet Service | http://localhost:8080 |
+| Permission Service | http://localhost:8081 |
+| Postgres `snippets` | `localhost:5433` |
+| Postgres `permisos` | `localhost:5434` |
+
+Los puertos de Postgres solo se publican en `127.0.0.1`: las bases no son accesibles desde otras máquinas de la red.
+
+Para comprobar que un servicio está arriba y conectado a su base: http://localhost:8080/actuator/health (o `8081`) tiene que responder `"status":"UP"`, con `db` también en `UP`.
+
+Para bajar todo: `docker compose -f docker-compose.sistema.yml down`. Los datos quedan en volúmenes de Docker; para borrarlos también, agregar `-v`.
+
+### Correr los tests
+
+Los tests levantan el servicio completo, así que necesitan la base arriba y las variables de conexión. Con la base levantada (`docker compose up -d snippets-db`):
+
+```bash
+DB_URL=jdbc:postgresql://localhost:5433/snippets DB_USER=<usuario> DB_PASSWORD=<contraseña> ./gradlew test
+```
+
+Usuario y contraseña son los del `.env`. Sin la base, `./gradlew build` y `./gradlew test` fallan; la imagen de Docker se arma igual porque solo ejecuta `bootJar`.
+
 ## Estructura del repositorio
 
 ```
@@ -308,6 +360,15 @@ Commits en español con formato `tipo(scope): resumen`. Detalle en [`CLAUDE.md`]
 │   ├── diagramas/                     # Diagramas de componentes (PlantUML + PNG)
 │   ├── PizarronArquitecturaDiagrama.jpeg
 │   └── *.pdf                          # Consigna y user stories de la cátedra
+├── src/                               # Código de Snippet Service (Java + Spring Boot)
+├── build.gradle, settings.gradle      # Build con Gradle
+├── gradlew, gradle/                   # Wrapper de Gradle (no hace falta instalar Gradle)
+├── Dockerfile                         # Imagen de Snippet Service
+├── .dockerignore                      # Lo que no entra a la imagen
+├── docker-compose.yml                 # Snippet Service + su base
+├── docker-compose.sistema.yml         # Sistema completo (incluye el compose de cada repo)
+├── .env.example                       # Variables necesarias; copiar a .env
+├── .gitignore
 └── README.md
 ```
 

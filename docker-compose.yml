@@ -1,0 +1,40 @@
+# Levanta solo Snippet Service y su base de datos.
+# Para levantar el sistema completo, ver docker-compose.sistema.yml.
+# Uso: cp .env.example .env && docker compose up --build
+#
+# El nombre de proyecto es el mismo en todos los compose del sistema: así los
+# contenedores y los datos son los mismos se levante un servicio solo o todo.
+name: snippet-searcher
+
+services:
+  snippet-service:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://snippets-db:5432/${SNIPPETS_DB_NAME:?Falta SNIPPETS_DB_NAME, copiá .env.example a .env}
+      DB_USER: ${SNIPPETS_DB_USER:?Falta SNIPPETS_DB_USER, copiá .env.example a .env}
+      DB_PASSWORD: ${SNIPPETS_DB_PASSWORD:?Falta SNIPPETS_DB_PASSWORD, copiá .env.example a .env}
+    depends_on:
+      snippets-db:
+        condition: service_healthy
+
+  snippets-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${SNIPPETS_DB_NAME}
+      POSTGRES_USER: ${SNIPPETS_DB_USER}
+      POSTGRES_PASSWORD: ${SNIPPETS_DB_PASSWORD}
+    ports:
+      # Solo accesible desde esta máquina.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - snippets-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  snippets-data:
