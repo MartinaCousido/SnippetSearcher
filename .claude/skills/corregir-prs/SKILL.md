@@ -22,7 +22,7 @@ Las correcciones las firma **Martina Cousido**. El reporte es **solo local**: se
 | Reglas del proyecto | [checklist-proyecto.md](checklist-proyecto.md) |
 | Código alrededor | Quién llama a lo que cambió y qué otros servicios lo consumen |
 
-Si el PR no referencia una user story, ese es un hallazgo 🟠.
+Si el PR no referencia una user story, ese es un hallazgo 🟠. **Excepción:** los PRs de infraestructura (`chore(infra)`) y de documentación (`docs`) no requieren user story; en ese caso, en "Cumplimiento de la user story" se escribe "No aplica: PR de infraestructura / documentación".
 
 ## 2. Revisar
 
