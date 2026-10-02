@@ -1,6 +1,11 @@
 # Levanta solo Snippet Service y su base de datos.
 # Para levantar el sistema completo, ver docker-compose.sistema.yml.
 # Uso: cp .env.example .env && docker compose up --build
+#
+# El nombre de proyecto es el mismo en todos los compose del sistema: así los
+# contenedores y los datos son los mismos se levante un servicio solo o todo.
+name: snippet-searcher
+
 services:
   snippet-service:
     build: .
@@ -21,7 +26,8 @@ services:
       POSTGRES_USER: ${SNIPPETS_DB_USER}
       POSTGRES_PASSWORD: ${SNIPPETS_DB_PASSWORD}
     ports:
-      - "5433:5432"
+      # Solo accesible desde esta máquina.
+      - "127.0.0.1:5433:5432"
     volumes:
       - snippets-data:/var/lib/postgresql/data
     healthcheck:

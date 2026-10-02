@@ -31,3 +31,9 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+// Solo se genera el jar ejecutable de Spring Boot (bootJar), no el jar "plain":
+// el Dockerfile copia el único jar que queda en build/libs.
+tasks.named('jar') {
+	enabled = false
+}
