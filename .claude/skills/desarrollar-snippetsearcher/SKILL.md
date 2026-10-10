@@ -30,7 +30,7 @@ Aplica aunque Martina pida avanzar sin frenar: la instrucción de avanzar no es 
 7. **Tests** del comportamiento nuevo, incluidos errores y permisos. Correr build y tests; reportar el resultado real.
 8. **Commits** con el formato de `CLAUDE.md`.
 9. **Autocorrección**: aplicar la skill `corregir-prs` sobre `dev...HEAD` y corregir todo 🔴 y 🟠.
-10. **Entregar** a Martina: resumen, rama, commits, resultado de tests, autocorrección y descripción del PR (Qué / Por qué / Cómo / Impacto / Cómo probarlo). Push y PR hacia `dev` solo si ella lo confirma. Martina corrige; Claude no aprueba ni mergea.
+10. **Entregar** a Martina: resumen, rama, commits, resultado de tests, autocorrección y descripción del PR (Qué / Por qué / Cómo / Impacto / Cómo probarlo). Push y PR hacia `dev` solo si ella lo confirma. Martina corrige; Claude no aprueba, y mergea solo si ella se lo pide.
 
 ## Justificaciones que no valen
 
