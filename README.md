@@ -290,14 +290,39 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 
 ## Flujo de trabajo
 
+Aplica igual a los tres repos: SnippetSearcher, SnippetPermission y SnippetSearcher-infra.
+
 ```
 feature/us-<n>-<descripcion>  ──PR──▶  dev  ──PR──▶  main
+                                        │             │
+                                        ▼             ▼
+                                   VM de dev     VM de prod
 ```
 
-1. Cada user story o tarea se desarrolla en su propia rama, creada desde `dev`.
+1. Cada user story o tarea se desarrolla en su propia rama, creada desde `dev` (`feature/`, `docs/`, `fix/`…). Los pushes van a esa rama.
 2. Se abre un PR hacia `dev`. **Las correcciones de los PRs las hace Martina Cousido**, con la skill [`corregir-prs`](.claude/skills/corregir-prs/SKILL.md).
-3. Una vez aprobado y mergeado en `dev`, el cambio pasa a `main` mediante un PR `dev` → `main`.
-4. Nadie pushea directo a `dev` ni a `main`.
+3. Al mergear en `dev`, el cambio se despliega en la **VM de dev**.
+4. Lo probado en dev pasa a `main` con un PR `dev` → `main`. Al mergear, se despliega en la **VM de prod**.
+5. Al mergear un PR, se cierra el issue que resuelve.
+
+### Cómo se mergea
+
+| PR | Tipo de merge | Por qué |
+|---|---|---|
+| rama de tarea → `dev` | **Squash** | Junta los commits del PR en uno solo y deja `dev` prolijo |
+| `dev` → `main` | **Merge commit** | Mantiene la misma historia en las dos ramas. Con squash, `main` tendría un commit que `dev` no tiene, y el siguiente PR `dev` → `main` mostraría cambios viejos o conflictos falsos |
+
+### Protección de `dev` y `main`
+
+Configurada en GitHub con un *ruleset* llamado **Proteger dev y main**, igual en los tres repos (*Settings → Rules → Rulesets*):
+
+| Regla | Valor | Por qué |
+|---|---|---|
+| PR obligatorio | Sí, para todos | Nadie pushea directo a `dev` ni a `main`: GitHub rechaza el push. Los cambios entran solo mergeando un PR |
+| Aprobaciones requeridas | 1 | Todo PR necesita que otra persona lo apruebe antes de mergearse |
+| Excepción | Administradora del repo (Martina), **solo en PRs** | GitHub no deja que el autor apruebe su propio PR. Con la excepción, Martina puede mergear sus PRs sin aprobación; GitHub le pide confirmarlo y queda registrado. Un push directo se le rechaza igual. Los compañeros, como colaboradores con permiso de escritura, no tienen la excepción |
+| Force push y borrar la rama | Bloqueados | Evita perder historia |
+| CI obligatorio | ⏳ Pendiente | Hoy no hay CI. Cuando exista (SnippetSearcher#3 y SnippetPermission#3), se agrega al ruleset como check requerido para mergear a `dev` y `main` |
 
 Commits en español con formato `tipo(scope): resumen`. Detalle en [`CLAUDE.md`](CLAUDE.md).
 
