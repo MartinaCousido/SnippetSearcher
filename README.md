@@ -190,7 +190,7 @@ Las reglas concretas de lint y formateo (camelCase o snake_case, espacios alrede
 
 ## Arquitectura
 
-La arquitectura sigue el formato que propusieron los profesores en clase ([foto del pizarrón](docs/PizarronArquitecturaDiagrama.jpeg)). Se describe en dos diagramas de componentes UML, escritos en PlantUML dentro de [`docs/diagramas/`](docs/diagramas):
+La arquitectura sigue el formato que propusieron los profesores en clase ([foto del pizarrón](docs/diagramas/PizarronArquitecturaDiagrama.jpeg)). Se describe en dos diagramas de componentes UML, escritos en PlantUML dentro de [`docs/diagramas/`](docs/diagramas):
 
 | Diagrama | Fuente | Qué muestra |
 |---|---|---|
@@ -279,6 +279,8 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Autenticación | ✅ Definido | Auth0 (lo indica la cátedra) |
 | Lenguaje, framework y build | ✅ Definido | **Java 21 + Spring Boot 4.1.1 + Gradle 9.8** (Groovy DSL, con wrapper) |
 | Contenedores | ✅ Definido | Un `Dockerfile` por servicio; `docker-compose.yml` por repo y `docker-compose.sistema.yml` en este repo, que incluye los de cada repo para levantar todo. Todos comparten el proyecto `snippet-searcher`, así que los contenedores y los datos son los mismos se levante un servicio solo o el sistema. Ver [Cómo levantarlo](#cómo-levantarlo) |
+| Publicación de la imagen | ✅ Definido | En cada push a `dev` o `main`, GitHub Actions (`.github/workflows/cd.yml`) arma la imagen y la publica en GHCR como `ghcr.io/martinacousido/snippet-service`, con el tag del ambiente (`dev` o `prod`) y el del commit (`sha-…`). La imagen es pública. Ver [Tags de las imágenes](https://github.com/MartinaCousido/SnippetSearcher-infra#tags-de-las-imágenes) en el repo de infra |
+| Deploy del servicio | ✅ Definido | Después de publicar la imagen, el mismo workflow entra por SSH a la VM del ambiente (`dev` → VM de dev, `main` → VM de prod) y corre `docker service update` con el tag `sha-…` del commit. Actualiza **solo** `snippet-service`: los demás servicios del stack no se reinician. Usa los secrets `VM_HOST`, `VM_USER` y `VM_SSH_KEY` de los *Environments* `dev` y `prod` de este repo. La VM tiene que estar prendida |
 | Librería de PrintScript | ⏳ Pendiente | Cuál se usa (propia o de la cátedra), versión y dónde está publicada |
 | Contrato con la UI de la cátedra | ⏳ Pendiente | Repo de la UI, endpoints y DTOs que espera |
 | Snippet Storage (bucket) | ⏳ Pendiente | Si lo provee la cátedra o se implementa |
@@ -290,14 +292,39 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 
 ## Flujo de trabajo
 
+Aplica igual a los tres repos: SnippetSearcher, SnippetPermission y SnippetSearcher-infra.
+
 ```
 feature/us-<n>-<descripcion>  ──PR──▶  dev  ──PR──▶  main
+                                        │             │
+                                        ▼             ▼
+                                   VM de dev     VM de prod
 ```
 
-1. Cada user story o tarea se desarrolla en su propia rama, creada desde `dev`.
+1. Cada user story o tarea se desarrolla en su propia rama, creada desde `dev` (`feature/`, `docs/`, `fix/`…). Los pushes van a esa rama.
 2. Se abre un PR hacia `dev`. **Las correcciones de los PRs las hace Martina Cousido**, con la skill [`corregir-prs`](.claude/skills/corregir-prs/SKILL.md).
-3. Una vez aprobado y mergeado en `dev`, el cambio pasa a `main` mediante un PR `dev` → `main`.
-4. Nadie pushea directo a `dev` ni a `main`.
+3. Al mergear en `dev`, el cambio se despliega en la **VM de dev**.
+4. Lo probado en dev pasa a `main` con un PR `dev` → `main`. Al mergear, se despliega en la **VM de prod**.
+5. Al mergear un PR, se cierra el issue que resuelve.
+
+### Cómo se mergea
+
+| PR | Tipo de merge | Por qué |
+|---|---|---|
+| rama de tarea → `dev` | **Squash** | Junta los commits del PR en uno solo y deja `dev` prolijo |
+| `dev` → `main` | **Merge commit** | Mantiene la misma historia en las dos ramas. Con squash, `main` tendría un commit que `dev` no tiene, y el siguiente PR `dev` → `main` mostraría cambios viejos o conflictos falsos |
+
+### Protección de `dev` y `main`
+
+Configurada en GitHub con *rulesets* (*Settings → Rules → Rulesets*). **Proteger dev y main** está igual en los tres repos. **CI obligatorio en dev y main** está solo en SnippetSearcher y SnippetPermission, porque infra no tiene código que compilar:
+
+| Regla | Valor | Por qué |
+|---|---|---|
+| PR obligatorio | Sí, para todos | Nadie pushea directo a `dev` ni a `main`: GitHub rechaza el push. Los cambios entran solo mergeando un PR |
+| Aprobaciones requeridas | 1 | Todo PR necesita que otra persona lo apruebe antes de mergearse |
+| Excepción | Administradora del repo (Martina), **solo en PRs** | GitHub no deja que el autor apruebe su propio PR. Con la excepción, Martina puede mergear sus PRs sin aprobación; GitHub le pide confirmarlo y queda registrado. Un push directo se le rechaza igual. Los compañeros, como colaboradores con permiso de escritura, no tienen la excepción |
+| Force push y borrar la rama | Bloqueados | Evita perder historia |
+| CI obligatorio | Sí, **sin excepciones** | El check **`compilar-y-testear`** tiene que estar en verde para mergear a `dev` y `main`: si no compila o falla un test, el PR no entra. Está en un ruleset aparte (**CI obligatorio en dev y main**) que no tiene excepción para nadie, ni siquiera para la administradora. Así, la excepción del PR sin aprobación no permite saltear el CI. Ver [Correr los tests](#correr-los-tests) |
 
 Commits en español con formato `tipo(scope): resumen`. Detalle en [`CLAUDE.md`](CLAUDE.md).
 
@@ -350,15 +377,18 @@ DB_URL=jdbc:postgresql://localhost:5433/snippets DB_USER=<usuario> DB_PASSWORD=<
 
 Usuario y contraseña son los del `.env`. Sin la base, `./gradlew build` y `./gradlew test` fallan; la imagen de Docker se arma igual porque solo ejecuta `bootJar`.
 
+En cada PR hacia `dev` o `main`, el CI (`.github/workflows/ci.yml`) corre `./gradlew build` con una base Postgres 17 descartable. Su check se llama `compilar-y-testear` y es obligatorio para mergear.
+
 ## Estructura del repositorio
 
 ```
 .
 ├── .claude/skills/                    # Skills del proyecto para Claude Code
+├── .github/workflows/ci.yml           # Compila y testea en cada PR
+├── .github/workflows/cd.yml           # Publica la imagen y actualiza el servicio en la VM
 ├── CLAUDE.md                          # Reglas para Claude Code en este repo
 ├── docs/
-│   ├── diagramas/                     # Diagramas de componentes (PlantUML + PNG)
-│   ├── PizarronArquitecturaDiagrama.jpeg
+│   ├── diagramas/                     # Diagramas de componentes (PlantUML + PNG) y fotos del pizarrón
 │   └── *.pdf                          # Consigna y user stories de la cátedra
 ├── src/                               # Código de Snippet Service (Java + Spring Boot)
 ├── build.gradle, settings.gradle      # Build con Gradle
