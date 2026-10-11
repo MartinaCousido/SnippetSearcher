@@ -10,9 +10,4 @@ class SnippetServiceApplicationTests {
 	void contextLoads() {
 	}
 
-	@Test
-	void pruebaQueFallaAPropositoParaElCi() {
-		org.junit.jupiter.api.Assertions.fail("Prueba del CI: este test falla a propósito");
-	}
-
 }
