@@ -190,7 +190,7 @@ Las reglas concretas de lint y formateo (camelCase o snake_case, espacios alrede
 
 ## Arquitectura
 
-La arquitectura sigue el formato que propusieron los profesores en clase ([foto del pizarrón](docs/PizarronArquitecturaDiagrama.jpeg)). Se describe en dos diagramas de componentes UML, escritos en PlantUML dentro de [`docs/diagramas/`](docs/diagramas):
+La arquitectura sigue el formato que propusieron los profesores en clase ([foto del pizarrón](docs/diagramas/PizarronArquitecturaDiagrama.jpeg)). Se describe en dos diagramas de componentes UML, escritos en PlantUML dentro de [`docs/diagramas/`](docs/diagramas):
 
 | Diagrama | Fuente | Qué muestra |
 |---|---|---|
@@ -382,8 +382,7 @@ Usuario y contraseña son los del `.env`. Sin la base, `./gradlew build` y `./gr
 ├── .claude/skills/                    # Skills del proyecto para Claude Code
 ├── CLAUDE.md                          # Reglas para Claude Code en este repo
 ├── docs/
-│   ├── diagramas/                     # Diagramas de componentes (PlantUML + PNG)
-│   ├── PizarronArquitecturaDiagrama.jpeg
+│   ├── diagramas/                     # Diagramas de componentes (PlantUML + PNG) y fotos del pizarrón
 │   └── *.pdf                          # Consigna y user stories de la cátedra
 ├── src/                               # Código de Snippet Service (Java + Spring Boot)
 ├── build.gradle, settings.gradle      # Build con Gradle
