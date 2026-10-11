@@ -16,5 +16,7 @@ Estas reglas aplican a toda tarea en este repo. Para escribir o modificar códig
 ## PRs
 
 - Los PRs van hacia `dev`. Lo aprobado en `dev` pasa a `main` con un PR `dev` → `main`.
-- **Las correcciones de los PRs las hace Martina Cousido.** Claude no aprueba ni mergea PRs.
+- **Las correcciones de los PRs las hace Martina Cousido.** Claude no aprueba PRs.
+- Claude mergea un PR solo cuando Martina se lo pide. Antes de mergear, verifica que el PR no tenga conflictos y que los checks estén en verde.
+- Cuando se mergea un PR, se cierra el issue que resuelve, con un comentario corto que diga qué se hizo y enlace el PR. Hay que cerrarlo a mano: GitHub cierra issues automáticamente (con `Closes #n`) solo cuando el merge es a `main`, y los PRs van a `dev`.
 - Antes de proponer un PR, Claude hace una autocorrección con la skill `corregir-prs` y arregla lo que encuentre.
