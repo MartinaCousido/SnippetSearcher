@@ -324,7 +324,7 @@ Configurada en GitHub con un *ruleset* llamado **Proteger dev y main**, igual en
 | Aprobaciones requeridas | 1 | Todo PR necesita que otra persona lo apruebe antes de mergearse |
 | Excepción | Administradora del repo (Martina), **solo en PRs** | GitHub no deja que el autor apruebe su propio PR. Con la excepción, Martina puede mergear sus PRs sin aprobación; GitHub le pide confirmarlo y queda registrado. Un push directo se le rechaza igual. Los compañeros, como colaboradores con permiso de escritura, no tienen la excepción |
 | Force push y borrar la rama | Bloqueados | Evita perder historia |
-| CI obligatorio | ⏳ Pendiente | Hoy no hay CI. Cuando exista (SnippetSearcher#3 y SnippetPermission#3), se agrega al ruleset como check requerido para mergear a `dev` y `main` |
+| CI obligatorio | Sí, en SnippetSearcher y SnippetPermission | El check **`compilar-y-testear`** tiene que estar en verde para mergear a `dev` y `main`: si no compila o falla un test, el PR no entra. Infra no tiene CI porque no tiene código. Ver [Correr los tests](#correr-los-tests) |
 
 Commits en español con formato `tipo(scope): resumen`. Detalle en [`CLAUDE.md`](CLAUDE.md).
 
@@ -377,11 +377,14 @@ DB_URL=jdbc:postgresql://localhost:5433/snippets DB_USER=<usuario> DB_PASSWORD=<
 
 Usuario y contraseña son los del `.env`. Sin la base, `./gradlew build` y `./gradlew test` fallan; la imagen de Docker se arma igual porque solo ejecuta `bootJar`.
 
+En cada PR hacia `dev` o `main`, el CI (`.github/workflows/ci.yml`) corre `./gradlew build` con una base Postgres 17 descartable. Su check se llama `compilar-y-testear` y es obligatorio para mergear.
+
 ## Estructura del repositorio
 
 ```
 .
 ├── .claude/skills/                    # Skills del proyecto para Claude Code
+├── .github/workflows/ci.yml           # Compila y testea en cada PR
 ├── .github/workflows/cd.yml           # Publica la imagen y actualiza el servicio en la VM
 ├── CLAUDE.md                          # Reglas para Claude Code en este repo
 ├── docs/
