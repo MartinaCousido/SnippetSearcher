@@ -1,0 +1,60 @@
+# Publica la imagen de Snippet Service en GHCR en cada push a dev o main.
+# Las VMs descargan la imagen de ahí: no tienen el código.
+#
+# Tags (ver "Tags de las imágenes" en el README de SnippetSearcher-infra):
+#   - el del ambiente: dev (rama dev) o prod (rama main);
+#   - el del commit: sha-<7 caracteres>, único por push.
+name: CD
+
+on:
+  push:
+    branches: [dev, main]
+
+# Si llegan dos pushes seguidos a la misma rama, se publica solo el último.
+concurrency:
+  group: cd-${{ github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/martinacousido/snippet-service
+
+jobs:
+  publicar-imagen:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Para publicar en GHCR con el token del workflow.
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login en GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Calcular los tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=dev,enable=${{ github.ref_name == 'dev' }}
+            type=raw,value=prod,enable=${{ github.ref_name == 'main' }}
+            type=sha,prefix=sha-
+          flavor: latest=false
+
+      - name: Armar y publicar la imagen
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Reusa las capas de builds anteriores (por ejemplo, las dependencias de Gradle).
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
