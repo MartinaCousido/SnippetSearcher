@@ -279,6 +279,7 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Autenticación | ✅ Definido | Auth0 (lo indica la cátedra) |
 | Lenguaje, framework y build | ✅ Definido | **Java 21 + Spring Boot 4.1.1 + Gradle 9.8** (Groovy DSL, con wrapper) |
 | Contenedores | ✅ Definido | Un `Dockerfile` por servicio; `docker-compose.yml` por repo y `docker-compose.sistema.yml` en este repo, que incluye los de cada repo para levantar todo. Todos comparten el proyecto `snippet-searcher`, así que los contenedores y los datos son los mismos se levante un servicio solo o el sistema. Ver [Cómo levantarlo](#cómo-levantarlo) |
+| Publicación de la imagen | ✅ Definido | En cada push a `dev` o `main`, GitHub Actions (`.github/workflows/cd.yml`) arma la imagen y la publica en GHCR como `ghcr.io/martinacousido/snippet-service`, con el tag del ambiente (`dev` o `prod`) y el del commit (`sha-…`). La imagen es pública. Ver [Tags de las imágenes](https://github.com/MartinaCousido/SnippetSearcher-infra#tags-de-las-imágenes) en el repo de infra |
 | Librería de PrintScript | ⏳ Pendiente | Cuál se usa (propia o de la cátedra), versión y dónde está publicada |
 | Contrato con la UI de la cátedra | ⏳ Pendiente | Repo de la UI, endpoints y DTOs que espera |
 | Snippet Storage (bucket) | ⏳ Pendiente | Si lo provee la cátedra o se implementa |
@@ -380,6 +381,7 @@ Usuario y contraseña son los del `.env`. Sin la base, `./gradlew build` y `./gr
 ```
 .
 ├── .claude/skills/                    # Skills del proyecto para Claude Code
+├── .github/workflows/cd.yml           # Publica la imagen en GHCR en cada push a dev o main
 ├── CLAUDE.md                          # Reglas para Claude Code en este repo
 ├── docs/
 │   ├── diagramas/                     # Diagramas de componentes (PlantUML + PNG) y fotos del pizarrón
