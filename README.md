@@ -316,7 +316,7 @@ feature/us-<n>-<descripcion>  ──PR──▶  dev  ──PR──▶  main
 
 ### Protección de `dev` y `main`
 
-Configurada en GitHub con un *ruleset* llamado **Proteger dev y main**, igual en los tres repos (*Settings → Rules → Rulesets*):
+Configurada en GitHub con *rulesets* (*Settings → Rules → Rulesets*). **Proteger dev y main** está igual en los tres repos. **CI obligatorio en dev y main** está solo en SnippetSearcher y SnippetPermission, porque infra no tiene código que compilar:
 
 | Regla | Valor | Por qué |
 |---|---|---|
@@ -324,7 +324,7 @@ Configurada en GitHub con un *ruleset* llamado **Proteger dev y main**, igual en
 | Aprobaciones requeridas | 1 | Todo PR necesita que otra persona lo apruebe antes de mergearse |
 | Excepción | Administradora del repo (Martina), **solo en PRs** | GitHub no deja que el autor apruebe su propio PR. Con la excepción, Martina puede mergear sus PRs sin aprobación; GitHub le pide confirmarlo y queda registrado. Un push directo se le rechaza igual. Los compañeros, como colaboradores con permiso de escritura, no tienen la excepción |
 | Force push y borrar la rama | Bloqueados | Evita perder historia |
-| CI obligatorio | Sí, en SnippetSearcher y SnippetPermission | El check **`compilar-y-testear`** tiene que estar en verde para mergear a `dev` y `main`: si no compila o falla un test, el PR no entra. Infra no tiene CI porque no tiene código. Ver [Correr los tests](#correr-los-tests) |
+| CI obligatorio | Sí, **sin excepciones** | El check **`compilar-y-testear`** tiene que estar en verde para mergear a `dev` y `main`: si no compila o falla un test, el PR no entra. Está en un ruleset aparte (**CI obligatorio en dev y main**) que no tiene excepción para nadie, ni siquiera para la administradora. Así, la excepción del PR sin aprobación no permite saltear el CI. Ver [Correr los tests](#correr-los-tests) |
 
 Commits en español con formato `tipo(scope): resumen`. Detalle en [`CLAUDE.md`](CLAUDE.md).
 
