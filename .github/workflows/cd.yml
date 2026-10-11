@@ -1,5 +1,12 @@
-# Publica la imagen de Snippet Service en GHCR en cada push a dev o main.
-# Las VMs descargan la imagen de ahí: no tienen el código.
+# En cada push a dev o main:
+#   1. publica la imagen de Snippet Service en GHCR;
+#   2. actualiza solo snippet-service en la VM del ambiente, sin tocar los
+#      demás servicios del stack.
+#   push a dev  → Environment dev  → VM de dev
+#   push a main → Environment prod → VM de prod
+#
+# Secrets de cada Environment: VM_HOST, VM_USER y VM_SSH_KEY (los mismos
+# valores que en SnippetSearcher-infra).
 #
 # Tags (ver "Tags de las imágenes" en el README de SnippetSearcher-infra):
 #   - el del ambiente: dev (rama dev) o prod (rama main);
@@ -10,10 +17,10 @@ on:
   push:
     branches: [dev, main]
 
-# Si llegan dos pushes seguidos a la misma rama, se publica solo el último.
+# Un deploy por rama a la vez. No se cancela uno a mitad de camino.
 concurrency:
   group: cd-${{ github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   IMAGE: ghcr.io/martinacousido/snippet-service
@@ -58,3 +65,28 @@ jobs:
           # Reusa las capas de builds anteriores (por ejemplo, las dependencias de Gradle).
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  actualizar-servicio:
+    needs: publicar-imagen
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    steps:
+      - name: Preparar la conexión SSH
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VM_SSH_KEY" > ~/.ssh/vm.pem
+          chmod 600 ~/.ssh/vm.pem
+          ssh-keyscan -T 15 -H "$VM_HOST" >> ~/.ssh/known_hosts
+
+      - name: Actualizar snippet-service en la VM
+        env:
+          VM: ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}
+        # Usa el tag del commit (sha-...), no el del ambiente: así la VM sabe
+        # exactamente qué versión corre. docker service update espera a que
+        # la versión nueva arranque, y falla si no lo logra.
+        run: |
+          ssh -i ~/.ssh/vm.pem "$VM" \
+            "docker service update --image ${IMAGE}:sha-${GITHUB_SHA::7} snippet-searcher_snippet-service"
