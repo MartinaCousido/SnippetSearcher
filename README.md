@@ -203,7 +203,7 @@ Las conexiones `memory` indican que, a nivel lógico, los módulos se llaman com
 
 ### Vista de despliegue
 ![Vista de despliegue](docs/diagramas/componentes-despliegue.png)
-Cada módulo se despliega como un servicio independiente con API HTTP. Snippets y Permisos tienen **cada uno su propio Postgres**. El **código de los snippets no va a Postgres**: se guarda en un bucket, detrás de la interfaz `Snippet Storage`, y tanto Snippets como los servicios de lenguaje lo leen desde ahí.
+Cada módulo se despliega como un servicio independiente con API HTTP. Snippets y Permisos tienen **cada uno su propio Postgres**. El **código de los snippets no va a Postgres**: se guarda en un bucket, detrás de la interfaz `Snippet Storage`. Solo Snippets lo lee y lo escribe: a los servicios de lenguaje les manda el código en cada pedido.
 
 ## Roles
 Los roles de las user stories describen **puntos de vista**, no permisos distintos en el sistema. Hoy cualquier usuario autenticado puede hacer todo sobre sus propios snippets. La única distinción real que el sistema aplica es **owner vs. usuario con quien se compartió el snippet**.
@@ -227,7 +227,7 @@ Todos los roles son usuarios autenticados con Auth0: no existen usuarios anónim
 | **User** | Expone los usuarios del sistema. Por ejemplo, la búsqueda de usuarios que filtra a medida que se escribe al compartir un snippet (#7). Se apoya en Auth0, no mantiene una tabla de usuarios propia | Auth0 |
 | **Snippets** | Módulo central. Guarda los metadatos del snippet (nombre, descripción, lenguaje, versión, estado de lint), los tests y la configuración de reglas. Orquesta la validación, el lint, el formateo y la ejecución delegándolas en el lenguaje correspondiente | Postgres (snippets) + Snippet Storage |
 | **Permisos** | Decide quién puede hacer qué sobre cada snippet: registra al owner y a los usuarios con quienes se compartió, y responde consultas del tipo "¿este usuario puede leer o escribir este snippet?" | Postgres (permisos) |
-| **Language** (interfaz) | Contrato común que todo lenguaje debe cumplir: `evaluate` (ejecutar), `lint` y `format`. La validación sintáctica ocurre como parte de estas operaciones | — |
+| **Language** (interfaz) | Contrato común que todo lenguaje debe cumplir: `validate` (sintaxis y semántica, sin ejecutar), `lint`, `format` y `evaluate` (ejecutar). Recibe el código del snippet, no su id. Los errores y las reglas incumplidas vuelven como `Diagnostic` | — |
 | **PrintScript** | Implementación de `Language` para PrintScript. Usa la **PrintScript Library** (lexer, parser, intérprete, linter y formatter) | — |
 | **Otros lenguajes** (futuro) | Python, TypeScript, Go, Ruby, etc. Serían nuevas implementaciones de `Language`, desplegadas como servicios iguales a PrintScript | — |
 | **Snippet Storage** (interfaz) / **Bucket Storage** | Guarda y entrega el contenido (código) de los snippets como archivos en un bucket | Bucket |
@@ -244,7 +244,6 @@ Todos los roles son usuarios autenticados con Auth0: no existen usuarios anónim
 | Snippets | Language (PrintScript) | Validar, lintear, formatear y ejecutar el código |
 | Snippets | Snippet Storage | Guardar y leer el contenido del snippet |
 | Snippets, Permisos | Auth0 | Validar el JWT de cada request y obtener el `userId` |
-| PrintScript (y otros lenguajes) | Snippet Storage | Leer el código del snippet a partir de su id, sin que Snippets tenga que mandarlo completo |
 | PrintScript | PrintScript Library | Toda la lógica del lenguaje |
 
 Reglas de diseño que salen de estas dependencias:
@@ -286,7 +285,14 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Contrato con la UI de la cátedra | ⏳ Pendiente | La UI se conecta al backend con nuestra implementación de `src/utils/snippetOperations.ts`. Falta definir los endpoints y DTOs que salen de esa interfaz (#14) |
 | Snippet Storage (bucket) | ⏳ Pendiente | Si lo provee la cátedra o se implementa |
 | Base de datos | ✅ Definido | **PostgreSQL 17, un contenedor por servicio** (`snippets` y `permisos`). Ningún servicio accede a la base de otro |
-| Migraciones | ⏳ Pendiente | Herramienta a definir (por ejemplo Flyway). Mientras tanto, `ddl-auto: none` |
+| Migraciones | ✅ Definido | **Flyway**. Cada cambio de esquema es un archivo SQL numerado en `src/main/resources/db/migration` (`V1__crear_snippets.sql`, `V2__…`). Spring Boot los aplica en orden al arrancar y recuerda cuáles ya corrió. Se mantiene `ddl-auto: none`: Hibernate no toca el esquema |
+| Interfaz `Language` | ✅ Definido | Cuatro operaciones: `validate` (revisa sintaxis y semántica sin ejecutar), `lint`, `format` y `evaluate` (ejecutar). Reciben **el código**, nunca el id del snippet: así se puede validar antes de guardar, y los servicios de lenguaje no conocen el Snippet Storage. `validate` y `lint` devuelven una lista de `Diagnostic`. Ver [Módulos](#módulos) |
+| `Diagnostic` | ✅ Definido | Un problema en el código, igual para todos los lenguajes. Tiene **el nombre de la regla incumplida** (lo pide la US-1), un mensaje y un `Range`: línea y columna de inicio y de fin. Cada servicio de lenguaje traduce los errores de su librería a este formato. En PrintScript, el nombre de la regla sale de un **código de regla** que se pide agregar a `Failure` y `Violation` en la librería; no se deduce del texto del mensaje, porque cambiaría sin aviso si cambia el mensaje |
+| Organización del código | ✅ Definido | **Paquetes por tema**, no por tipo. Snippet Service: `snippet/`, `testcase/`, `rules/`, `clients/`. Permission Service: `permission/`, `security/`. La arquitectura de servicios no cambia |
+| Reglas de lint y formateo | ✅ Definido | **Cada usuario tiene su configuración.** Un snippet se lintea y se formatea con las reglas de su owner. Un usuario con quien se compartió ve ese mismo resultado, así que cada snippet tiene un solo estado de lint |
+| Versión formateada (US-13) | ✅ Definido | **Se guarda.** El formateo en segundo plano (US-12) guarda el resultado como un segundo archivo en el Snippet Storage; el original no se toca. La descarga lee uno o el otro |
+| Auth0 | ⏳ Pendiente | Crear el tenant, la app de la UI y la API. Queda para más adelante |
+| Módulo User | ⏳ Pendiente | En qué servicio vive la búsqueda de usuarios (US-7). Se consulta con la cátedra |
 | Framework de tests | ✅ Definido | **JUnit 5**, con los starters de test de Spring Boot (lo que genera Spring Initializr). Los tests necesitan la base levantada. Ver [Correr los tests](#correr-los-tests) |
 | Linter y cobertura | ⏳ Pendiente | Linter y cobertura mínima |
 | Cola de mensajes | ⏳ Pendiente | La cátedra la explica más adelante (#12, #15) |

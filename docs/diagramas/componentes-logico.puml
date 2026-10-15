@@ -17,9 +17,10 @@ rectangle "Snippet Searcher" {
   component Permisos
 
   interface Language <<interface>> {
-    + evaluate(snippet, inputs): outputs
-    + lint(snippet, reglas): violaciones
-    + format(snippet, reglas): snippet
+    + validate(código, versión): Diagnostic[]
+    + lint(código, versión, reglas): Diagnostic[]
+    + format(código, versión, reglas): código
+    + evaluate(código, versión, inputs): outputs
   }
 
   component PrintScript
