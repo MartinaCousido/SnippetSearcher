@@ -222,7 +222,7 @@ Todos los roles son usuarios autenticados con Auth0: no existen usuarios anónim
 
 | Módulo | Responsabilidad | Guarda datos en |
 |---|---|---|
-| **UI** | Interfaz web (React) provista por la cátedra: pantallas, editor embebido, login. Solo hay que configurarla para que apunte a nuestros servicios | — |
+| **UI** | Interfaz web (React) provista por la cátedra: pantallas, editor embebido, login. Solo hay que configurarla para que apunte a nuestros servicios. Vive en [SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui) | — |
 | **Auth0** (externo) | Login, emisión de tokens JWT y registro de usuarios | Auth0 |
 | **User** | Expone los usuarios del sistema. Por ejemplo, la búsqueda de usuarios que filtra a medida que se escribe al compartir un snippet (#7). Se apoya en Auth0, no mantiene una tabla de usuarios propia | Auth0 |
 | **Snippets** | Módulo central. Guarda los metadatos del snippet (nombre, descripción, lenguaje, versión, estado de lint), los tests y la configuración de reglas. Orquesta la validación, el lint, el formateo y la ejecución delegándolas en el lenguaje correspondiente | Postgres (snippets) + Snippet Storage |
@@ -282,7 +282,8 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Publicación de la imagen | ✅ Definido | En cada push a `dev` o `main`, GitHub Actions (`.github/workflows/cd.yml`) arma la imagen y la publica en GHCR como `ghcr.io/martinacousido/snippet-service`, con el tag del ambiente (`dev` o `prod`) y el del commit (`sha-…`). La imagen es pública. Ver [Tags de las imágenes](https://github.com/MartinaCousido/SnippetSearcher-infra#tags-de-las-imágenes) en el repo de infra |
 | Deploy del servicio | ✅ Definido | Después de publicar la imagen, el mismo workflow entra por SSH a la VM del ambiente (`dev` → VM de dev, `main` → VM de prod) y corre `docker service update` con el tag `sha-…` del commit. Actualiza **solo** `snippet-service`: los demás servicios del stack no se reinician. Usa los secrets `VM_HOST`, `VM_USER` y `VM_SSH_KEY` de los *Environments* `dev` y `prod` de este repo. La VM tiene que estar prendida |
 | Librería de PrintScript | ⏳ Pendiente | Cuál se usa (propia o de la cátedra), versión y dónde está publicada |
-| Contrato con la UI de la cátedra | ⏳ Pendiente | Repo de la UI, endpoints y DTOs que espera |
+| Repo de la UI | ✅ Definido | [SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui): un *fork* (copia vinculada) de la UI de la cátedra, [austral-ingsis/printscript-ui](https://github.com/austral-ingsis/printscript-ui). Con *Sync fork* se traen los cambios de la cátedra. No usa `dev` ni `main`: las ramas salen de `master` y los PRs van hacia `master` |
+| Contrato con la UI de la cátedra | ⏳ Pendiente | La UI se conecta al backend con nuestra implementación de `src/utils/snippetOperations.ts`. Falta definir los endpoints y DTOs que salen de esa interfaz (#14) |
 | Snippet Storage (bucket) | ⏳ Pendiente | Si lo provee la cátedra o se implementa |
 | Base de datos | ✅ Definido | **PostgreSQL 17, un contenedor por servicio** (`snippets` y `permisos`). Ningún servicio accede a la base de otro |
 | Migraciones | ⏳ Pendiente | Herramienta a definir (por ejemplo Flyway). Mientras tanto, `ddl-auto: none` |
@@ -292,7 +293,7 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 
 ## Flujo de trabajo
 
-Aplica igual a los tres repos: SnippetSearcher, SnippetPermission y SnippetSearcher-infra.
+Aplica igual a los tres repos: SnippetSearcher, SnippetPermission y SnippetSearcher-infra. El repo de la UI ([SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui)) no tiene `dev` ni `main`: cada tarea va en su propia rama, creada desde `master`, y entra con un PR hacia `master`.
 
 ```
 feature/us-<n>-<descripcion>  ──PR──▶  dev  ──PR──▶  main
