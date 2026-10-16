@@ -285,7 +285,7 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Librería de PrintScript | ✅ Definido | **[MartinaCousido/PrintScript](https://github.com/MartinaCousido/PrintScript) `0.3.0`**: copia propia e independiente de la librería del TP anterior (`ingsis-ua/ingsis-interpreter`), con Java 25. Se publica en GitHub Packages como `org.printscript:<módulo>:0.3.0` (por ejemplo `org.printscript:runner`), desde `https://maven.pkg.github.com/MartinaCousido/PrintScript`. Bajarla pide un token con `read:packages`, también en el CI y en el build de Docker del servicio que la use |
 | Repo de la UI | ✅ Definido | [SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui): un *fork* (copia vinculada) de la UI de la cátedra, [austral-ingsis/printscript-ui](https://github.com/austral-ingsis/printscript-ui). Con *Sync fork* se traen los cambios de la cátedra. No usa `dev` ni `main`: las ramas salen de `master` y los PRs van hacia `master` |
 | Contrato con la UI de la cátedra | ⏳ Pendiente | La UI se conecta al backend con nuestra implementación de `src/utils/snippetOperations.ts`. Falta definir los endpoints y DTOs que salen de esa interfaz (#14) |
-| Snippet Storage (bucket) | ✅ Definido | Lo provee la cátedra (clase del 2026-10-13): el **[Asset Service](https://github.com/austral-ingsis/asset-service)** (imagen `ghcr.io/austral-ingsis/snippet-asset-service`), sobre un bucket emulado con **Azurite**. Expone `GET`, `PUT` y `DELETE` en `/v1/asset/{container}/{key}`. En Postgres va solo la referencia al archivo. Su imagen se baja de GHCR con login. Se suma al stack en [SnippetSearcher-infra#14](https://github.com/MartinaCousido/SnippetSearcher-infra/issues/14) |
+| Snippet Storage (bucket) | ✅ Definido | Lo provee la cátedra (clase del 2026-10-13): el **[Asset Service](https://github.com/austral-ingsis/asset-service)** (imagen `ghcr.io/austral-ingsis/snippet-asset-service`), sobre un bucket emulado con **Azurite**. Expone `GET`, `PUT` y `DELETE` en `/v1/asset/{container}/{key}`. En Postgres va solo la referencia al archivo. La imagen es pública: se baja sin login. Se suma al stack en [SnippetSearcher-infra#14](https://github.com/MartinaCousido/SnippetSearcher-infra/issues/14) |
 | Servicio de PrintScript | ⏳ Pendiente | En qué repo vive la aplicación que envuelve la librería y expone `Language` por HTTP: dentro del repo [PrintScript](https://github.com/MartinaCousido/PrintScript) o en un repo propio. **Se consulta con la cátedra.** Lo que pesa: el repo de la librería trabaja solo con `master`, y el deploy necesita `dev` y `main` |
 | Base de datos | ✅ Definido | **PostgreSQL 17, un contenedor por servicio** (`snippets` y `permisos`). Ningún servicio accede a la base de otro |
 | Migraciones | ✅ Definido | **Flyway**. Cada cambio de esquema es un archivo SQL numerado en `src/main/resources/db/migration` (`V1__crear_snippets.sql`, `V2__…`). Spring Boot los aplica en orden al arrancar y recuerda cuáles ya corrió. Se mantiene `ddl-auto: none`: Hibernate no toca el esquema |
@@ -356,7 +356,7 @@ Si se quiere cambiar la contraseña de la base, hay que hacerlo en el `.env` **a
 docker compose -f docker-compose.sistema.yml up --build
 ```
 
-**Solo Snippet Service** y su base:
+**Solo Snippet Service**, su base y el Snippet Storage (Asset Service + Azurite):
 
 ```bash
 docker compose up --build
@@ -370,8 +370,10 @@ docker compose up --build
 | Permission Service | http://localhost:8081 |
 | Postgres `snippets` | `localhost:5433` |
 | Postgres `permisos` | `localhost:5434` |
+| Asset Service (Snippet Storage) | http://localhost:8082 (Swagger en http://localhost:8082/swagger-ui) |
+| Azurite (bucket) | Sin puerto: solo lo usa el Asset Service, por la red interna |
 
-Los puertos de Postgres solo se publican en `127.0.0.1`: las bases no son accesibles desde otras máquinas de la red.
+Los puertos de Postgres y del Asset Service solo se publican en `127.0.0.1`: no son accesibles desde otras máquinas de la red. Los archivos de los snippets quedan en el volumen `azurite-data` y sobreviven a cada reinicio.
 
 Para comprobar que un servicio está arriba y conectado a su base: http://localhost:8080/actuator/health (o `8081`) tiene que responder `"status":"UP"`, con `db` también en `UP`.
 
