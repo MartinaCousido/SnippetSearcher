@@ -2,7 +2,7 @@ package com.snippetsearcher.snippets.clients;
 
 import java.util.Optional;
 
-// Guarda y entrega el código de los snippets. 
+// Guarda y entrega el código de los snippets.
 // La clave es el id del snippet.
 public interface SnippetStorage {
 

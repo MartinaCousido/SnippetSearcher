@@ -9,15 +9,15 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-// SnippetStorage sobre el Asset Service de la cátedra, que guarda cada snippet
-// como un archivo en Azurite: /v1/asset/{container}/{key}.
+// es la implementación de SnippetStorage
+// que guarda cada snippet como un archivo en Azurite: /v1/asset/{container}/{key}.
 @Component
 public class AssetServiceStorage implements SnippetStorage {
 
 	private static final String ASSET_PATH = "/v1/asset/{container}/{key}";
 	private static final MediaType UTF8_TEXT = new MediaType(MediaType.TEXT_PLAIN, StandardCharsets.UTF_8);
 
-	private final RestClient client;
+	private final RestClient client; // le habla por HTTP al Asset Service con RestClient
 	private final String container;
 
 	public AssetServiceStorage(
