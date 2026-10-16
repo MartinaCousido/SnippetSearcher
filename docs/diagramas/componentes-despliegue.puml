@@ -35,10 +35,12 @@ node "Otros lenguajes (futuro)" <<HTTP>> as OtrosNode {
 }
 
 interface "Snippet Storage" as Storage
-node "Bucket Storage Service" <<HTTP>> {
-  component "Bucket Storage" as BucketSvc
+node "Asset Service (cátedra)" <<HTTP>> {
+  component "Asset Service" as BucketSvc
 }
-storage "Bucket" as Bucket
+storage "Azurite\n(bucket)" as Bucket
+
+queue "Redis Streams" as Redis
 
 Usuario --> UI
 UI --> Auth0 : login (OAuth)
@@ -54,6 +56,7 @@ Permisos --> PermDB
 PrintScript --> PSLib : usa
 
 Snippets ..> Storage : HTTP
+Snippets --> Redis : publica y consume\nlint / formateo
 
 BucketSvc -up- Storage
 BucketSvc --> Bucket

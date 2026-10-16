@@ -228,9 +228,9 @@ Todos los roles son usuarios autenticados con Auth0: no existen usuarios anónim
 | **Snippets** | Módulo central. Guarda los metadatos del snippet (nombre, descripción, lenguaje, versión, estado de lint), los tests y la configuración de reglas. Orquesta la validación, el lint, el formateo y la ejecución delegándolas en el lenguaje correspondiente | Postgres (snippets) + Snippet Storage |
 | **Permisos** | Decide quién puede hacer qué sobre cada snippet: registra al owner y a los usuarios con quienes se compartió, y responde consultas del tipo "¿este usuario puede leer o escribir este snippet?" | Postgres (permisos) |
 | **Language** (interfaz) | Contrato común que todo lenguaje debe cumplir: `validate` (sintaxis y semántica, sin ejecutar), `lint`, `format` y `evaluate` (ejecutar). Recibe el código del snippet, no su id. Los errores y las reglas incumplidas vuelven como `Diagnostic` | — |
-| **PrintScript** | Implementación de `Language` para PrintScript. Usa la **PrintScript Library** (lexer, parser, intérprete, linter y formatter) | — |
+| **PrintScript** | Implementación de `Language` para PrintScript. Usa la **PrintScript Library** ([MartinaCousido/PrintScript](https://github.com/MartinaCousido/PrintScript): lexer, parser, intérprete, linter y formatter) | — |
 | **Otros lenguajes** (futuro) | Python, TypeScript, Go, Ruby, etc. Serían nuevas implementaciones de `Language`, desplegadas como servicios iguales a PrintScript | — |
-| **Snippet Storage** (interfaz) / **Bucket Storage** | Guarda y entrega el contenido (código) de los snippets como archivos en un bucket | Bucket |
+| **Snippet Storage** (interfaz) / **Asset Service** | Guarda y entrega el contenido (código) de los snippets como archivos en un bucket. Lo implementa el Asset Service de la cátedra, sobre Azurite | Bucket (Azurite) |
 
 ## Dependencias entre módulos
 
@@ -243,6 +243,7 @@ Todos los roles son usuarios autenticados con Auth0: no existen usuarios anónim
 | Snippets | Permisos | Verificar que el usuario puede leer o modificar un snippet, y registrar al owner al crearlo |
 | Snippets | Language (PrintScript) | Validar, lintear, formatear y ejecutar el código |
 | Snippets | Snippet Storage | Guardar y leer el contenido del snippet |
+| Snippets | Redis | Publicar y consumir los trabajos de lint y formateo en segundo plano |
 | Snippets, Permisos | Auth0 | Validar el JWT de cada request y obtener el `userId` |
 | PrintScript | PrintScript Library | Toda la lógica del lenguaje |
 
@@ -253,7 +254,7 @@ Reglas de diseño que salen de estas dependencias:
 - **Cada servicio es dueño de sus datos.** Snippets no lee la base de Permisos ni al revés: se comunican por HTTP.
 - **No hay dependencias circulares.**
 
-La cola de mensajes para el formateo y linting masivo (#12, #15) no aparece en los diagramas porque la cátedra la va a explicar más adelante. Cuando se agregue, Snippets publicaría los trabajos y los servicios de lenguaje los consumirían.
+La cola de mensajes (Redis Streams) para el formateo y linting en segundo plano (#12, #15) la publica y la consume el mismo Snippet Service. Los servicios de lenguaje no la conocen: siguen siendo HTTP simple.
 
 ## Ejemplo: crear un snippet de punta a punta
 
@@ -265,8 +266,9 @@ La cola de mensajes para el formateo y linting masivo (#12, #15) no aparece en l
    - guarda el contenido en **Snippet Storage**;
    - guarda los metadatos en **Postgres (snippets)**;
    - registra al usuario como owner en **Permisos**.
-5. Lintea el snippet y actualiza su estado de validez.
-6. Corre los tests del snippet, si tiene (#16).
+5. Marca el snippet como `PENDING` y publica un mensaje en Redis Streams. El endpoint responde sin esperar.
+6. En segundo plano, Snippet Service lintea el snippet y actualiza su estado (`COMPLIANT`, `NOT_COMPLIANT` o `FAILED`).
+7. Corre los tests del snippet, si tiene (#16).
 
 ## Decisiones técnicas
 
@@ -280,14 +282,15 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Contenedores | ✅ Definido | Un `Dockerfile` por servicio; `docker-compose.yml` por repo y `docker-compose.sistema.yml` en este repo, que incluye los de cada repo para levantar todo. Todos comparten el proyecto `snippet-searcher`, así que los contenedores y los datos son los mismos se levante un servicio solo o el sistema. Ver [Cómo levantarlo](#cómo-levantarlo) |
 | Publicación de la imagen | ✅ Definido | En cada push a `dev` o `main`, GitHub Actions (`.github/workflows/cd.yml`) arma la imagen y la publica en GHCR como `ghcr.io/martinacousido/snippet-service`, con el tag del ambiente (`dev` o `prod`) y el del commit (`sha-…`). La imagen es pública. Ver [Tags de las imágenes](https://github.com/MartinaCousido/SnippetSearcher-infra#tags-de-las-imágenes) en el repo de infra |
 | Deploy del servicio | ✅ Definido | Después de publicar la imagen, el mismo workflow entra por SSH a la VM del ambiente (`dev` → VM de dev, `main` → VM de prod) y corre `docker service update` con el tag `sha-…` del commit. Actualiza **solo** `snippet-service`: los demás servicios del stack no se reinician. Usa los secrets `VM_HOST`, `VM_USER` y `VM_SSH_KEY` de los *Environments* `dev` y `prod` de este repo. La VM tiene que estar prendida |
-| Librería de PrintScript | ⏳ Pendiente | Cuál se usa (propia o de la cátedra), versión y dónde está publicada |
+| Librería de PrintScript | ✅ Definido | **[MartinaCousido/PrintScript](https://github.com/MartinaCousido/PrintScript) `0.3.0`**: copia propia e independiente de la librería del TP anterior (`ingsis-ua/ingsis-interpreter`), con Java 25. Se publica en GitHub Packages como `org.printscript:<módulo>:0.3.0` (por ejemplo `org.printscript:runner`), desde `https://maven.pkg.github.com/MartinaCousido/PrintScript`. Bajarla pide un token con `read:packages`, también en el CI y en el build de Docker del servicio que la use |
 | Repo de la UI | ✅ Definido | [SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui): un *fork* (copia vinculada) de la UI de la cátedra, [austral-ingsis/printscript-ui](https://github.com/austral-ingsis/printscript-ui). Con *Sync fork* se traen los cambios de la cátedra. No usa `dev` ni `main`: las ramas salen de `master` y los PRs van hacia `master` |
 | Contrato con la UI de la cátedra | ⏳ Pendiente | La UI se conecta al backend con nuestra implementación de `src/utils/snippetOperations.ts`. Falta definir los endpoints y DTOs que salen de esa interfaz (#14) |
-| Snippet Storage (bucket) | ⏳ Pendiente | Si lo provee la cátedra o se implementa |
+| Snippet Storage (bucket) | ✅ Definido | Lo provee la cátedra (clase del 2026-10-13): el **[Asset Service](https://github.com/austral-ingsis/asset-service)** (imagen `ghcr.io/austral-ingsis/snippet-asset-service`), sobre un bucket emulado con **Azurite**. Expone `GET`, `PUT` y `DELETE` en `/v1/asset/{container}/{key}`. En Postgres va solo la referencia al archivo. Su imagen se baja de GHCR con login. Se suma al stack en [SnippetSearcher-infra#14](https://github.com/MartinaCousido/SnippetSearcher-infra/issues/14) |
+| Servicio de PrintScript | ⏳ Pendiente | En qué repo vive la aplicación que envuelve la librería y expone `Language` por HTTP: dentro del repo [PrintScript](https://github.com/MartinaCousido/PrintScript) o en un repo propio. **Se consulta con la cátedra.** Lo que pesa: el repo de la librería trabaja solo con `master`, y el deploy necesita `dev` y `main` |
 | Base de datos | ✅ Definido | **PostgreSQL 17, un contenedor por servicio** (`snippets` y `permisos`). Ningún servicio accede a la base de otro |
 | Migraciones | ✅ Definido | **Flyway**. Cada cambio de esquema es un archivo SQL numerado en `src/main/resources/db/migration` (`V1__crear_snippets.sql`, `V2__…`). Spring Boot los aplica en orden al arrancar y recuerda cuáles ya corrió. Se mantiene `ddl-auto: none`: Hibernate no toca el esquema |
 | Interfaz `Language` | ✅ Definido | Cuatro operaciones: `validate` (revisa sintaxis y semántica sin ejecutar), `lint`, `format` y `evaluate` (ejecutar). Reciben **el código**, nunca el id del snippet: así se puede validar antes de guardar, y los servicios de lenguaje no conocen el Snippet Storage. `validate` y `lint` devuelven una lista de `Diagnostic`. Ver [Módulos](#módulos) |
-| `Diagnostic` | ✅ Definido | Un problema en el código, igual para todos los lenguajes. Tiene **el nombre de la regla incumplida** (lo pide la US-1), un mensaje y un `Range`: línea y columna de inicio y de fin. Cada servicio de lenguaje traduce los errores de su librería a este formato. En PrintScript, el nombre de la regla sale de un **código de regla** que se pide agregar a `Failure` y `Violation` en la librería; no se deduce del texto del mensaje, porque cambiaría sin aviso si cambia el mensaje |
+| `Diagnostic` | ✅ Definido | Un problema en el código, igual para todos los lenguajes. Tiene **el nombre de la regla incumplida** (lo pide la US-1), un mensaje y un `Range`: línea y columna de inicio y de fin. Cada servicio de lenguaje traduce los errores de su librería a este formato. En PrintScript, el nombre de la regla sale del **código de regla** de la librería (desde `0.3.0`): `Failure.code()` en los errores y `Violation.rule()` en el lint; no se deduce del texto del mensaje, porque cambiaría sin aviso si cambia el mensaje |
 | Organización del código | ✅ Definido | **Paquetes por tema**, no por tipo. Snippet Service: `snippet/`, `testcase/`, `rules/`, `clients/`. Permission Service: `permission/`, `security/`. La arquitectura de servicios no cambia |
 | Reglas de lint y formateo | ✅ Definido | **Cada usuario tiene su configuración.** Un snippet se lintea y se formatea con las reglas de su owner. Un usuario con quien se compartió ve ese mismo resultado, así que cada snippet tiene un solo estado de lint |
 | Versión formateada (US-13) | ✅ Definido | **Se guarda.** El formateo en segundo plano (US-12) guarda el resultado como un segundo archivo en el Snippet Storage; el original no se toca. La descarga lee uno o el otro |
@@ -295,7 +298,7 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Módulo User | ⏳ Pendiente | En qué servicio vive la búsqueda de usuarios (US-7). Se consulta con la cátedra |
 | Framework de tests | ✅ Definido | **JUnit 5**, con los starters de test de Spring Boot (lo que genera Spring Initializr). Los tests necesitan la base levantada. Ver [Correr los tests](#correr-los-tests) |
 | Linter y cobertura | ⏳ Pendiente | Linter y cobertura mínima |
-| Cola de mensajes | ⏳ Pendiente | La cátedra la explica más adelante (#12, #15) |
+| Cola de mensajes | ✅ Definido | **Redis Streams** (clase del 2026-10-13), para lintear y formatear en segundo plano (US-12, US-15). **Snippet Service se manda trabajo a sí mismo:** al crear o editar un snippet, o al cambiar una regla, marca los snippets afectados como `PENDING`, publica un mensaje por cada uno y responde enseguida. Un consumidor del mismo servicio llama a `Language.lint` o `format`, guarda el resultado y confirma el mensaje. Si falla, se reintenta; después del máximo de intentos, el snippet queda en `FAILED` y se sigue con el resto. Pros y contras, y la opción descartada, en #22. Falta definir si hay un stream por tarea o uno solo, y cuántos reintentos. Está en consulta con el profesor si se usa la librería de ayuda de la cátedra ([class-redis-streams](https://github.com/austral-ingsis/class-redis-streams)): confirma los mensajes al recibirlos y no se puede llamar desde Java |
 
 ## Flujo de trabajo
 
