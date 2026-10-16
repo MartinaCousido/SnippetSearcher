@@ -15,8 +15,11 @@ services:
       DB_URL: jdbc:postgresql://snippets-db:5432/${SNIPPETS_DB_NAME:?Falta SNIPPETS_DB_NAME, copiá .env.example a .env}
       DB_USER: ${SNIPPETS_DB_USER:?Falta SNIPPETS_DB_USER, copiá .env.example a .env}
       DB_PASSWORD: ${SNIPPETS_DB_PASSWORD:?Falta SNIPPETS_DB_PASSWORD, copiá .env.example a .env}
+      ASSET_SERVICE_URL: http://asset-service:8080
     depends_on:
       snippets-db:
+        condition: service_healthy
+      asset-service:
         condition: service_healthy
 
   snippets-db:
@@ -36,5 +39,33 @@ services:
       timeout: 3s
       retries: 10
 
+  # Snippet Storage: guarda el código de los snippets como archivos.
+  # Lo provee la cátedra (github.com/austral-ingsis/asset-service). La imagen es pública.
+  asset-service:
+    image: ghcr.io/austral-ingsis/snippet-asset-service:main.14
+    environment:
+      AZURE_HOST: http://azurite
+      # La imagen trae el agente de New Relic (monitoreo); no se usa.
+      NEW_RELIC_AGENT_ENABLED: "false"
+      NEW_RELIC_APP_NAME: asset-service
+    ports:
+      # Solo accesible desde esta máquina. Swagger en http://localhost:8082/swagger-ui
+      - "127.0.0.1:8082:8080"
+    depends_on:
+      - azurite
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9090/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # El bucket: emula Azure Blob Storage. Solo lo usa el Asset Service.
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.37.0
+    command: azurite-blob --blobHost 0.0.0.0 --location /data
+    volumes:
+      - azurite-data:/data
+
 volumes:
   snippets-data:
+  azurite-data:

@@ -354,7 +354,7 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Repo de la UI | ✅ Definido | [SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui): un *fork* (copia vinculada) de la UI de la cátedra, [austral-ingsis/printscript-ui](https://github.com/austral-ingsis/printscript-ui). Con *Sync fork* se traen los cambios de la cátedra. No usa `dev` ni `main`: las ramas salen de `master` y los PRs van hacia `master` |
 | Contrato con Permission Service | ✅ Definido | Cuatro endpoints. **Registrar owner:** `POST /permissions/{snippetId}/owner` → 201. **Compartir:** `POST /permissions/{snippetId}/share` con `{ "userId": "auth0\|juan" }` → 201, o 403 si quien comparte no es el owner. **¿Puede leer o escribir?:** `GET /permissions/{snippetId}` → `{ "canRead": true, "canWrite": false }`. **Snippets accesibles:** `GET /permissions/snippets?relation=owner\|shared\|all` → lista de ids. El `userId` de quien pide sale siempre del JWT: Snippet Service le **reenvía el token del usuario**, nunca le manda el `userId`. Detalle en el [README de SnippetPermission](https://github.com/MartinaCousido/SnippetPermission#operaciones) |
 | Contrato con la UI de la cátedra | ✅ Definido | Endpoints y formatos que salen de `src/utils/snippetOperations.ts`, más el reverse proxy que deja a la UI con una sola `BACKEND_URL`. Ver [Contrato con la UI](#contrato-con-la-ui) |
-| Snippet Storage (bucket) | ✅ Definido | Lo provee la cátedra (clase del 2026-10-13): el **[Asset Service](https://github.com/austral-ingsis/asset-service)** (imagen `ghcr.io/austral-ingsis/snippet-asset-service`), sobre un bucket emulado con **Azurite**. Expone `GET`, `PUT` y `DELETE` en `/v1/asset/{container}/{key}`. En Postgres va solo la referencia al archivo. Su imagen se baja de GHCR con login. Se suma al stack en [SnippetSearcher-infra#14](https://github.com/MartinaCousido/SnippetSearcher-infra/issues/14) |
+| Snippet Storage (bucket) | ✅ Definido | Lo provee la cátedra (clase del 2026-10-13): el **[Asset Service](https://github.com/austral-ingsis/asset-service)** (imagen `ghcr.io/austral-ingsis/snippet-asset-service`), sobre un bucket emulado con **Azurite**. Expone `GET`, `PUT` y `DELETE` en `/v1/asset/{container}/{key}`. En Postgres va solo la referencia al archivo. La imagen es pública: se baja sin login. Se suma al stack en [SnippetSearcher-infra#14](https://github.com/MartinaCousido/SnippetSearcher-infra/issues/14) |
 | Servicio de PrintScript | ✅ Definido | **Repo propio: [SnippetPrintScript](https://github.com/MartinaCousido/SnippetPrintScript)**, con el mismo flujo que los otros servicios (`dev` → VM de dev, `main` → VM de prod), los mismos rulesets y los Environments `dev` y `prod`. No copia el código del lenguaje: usa la librería publicada en GitHub Packages (`org.printscript:runner:0.3.0`), y la baja con el secret `PACKAGES_TOKEN` del repo (token classic con solo `read:packages`). Se descartó ponerlo dentro del repo de la librería: ese repo trabaja solo con `master`, publica versiones de librería y no imágenes, y sumarle Spring Boot obligaba a mantener sus checksums en `verification-metadata.xml`. Imagen `ghcr.io/martinacousido/printscript-service`, nombre en el stack `printscript-service`, puerto local `8083`. Snippet Service lo encuentra con la variable `PRINTSCRIPT_SERVICE_URL` |
 | Contrato del servicio de PrintScript | ✅ Definido | `POST /validate` con `{ "code": "...", "version": "1.1" }`. Responde **200** con `{ "diagnostics": [ { "rule": "MISSING_SEMICOLON", "message": "...", "range": { "start": { "line": 1, "column": 38 }, "end": { "line": 1, "column": 38 } } } ] }`, con el formato de `Diagnostic`. Lista vacía = el código es válido. Una versión que el servicio no conoce responde **400**. `lint`, `format` y `evaluate` se definen cuando se implementen |
 | Base de datos | ✅ Definido | **PostgreSQL 17, un contenedor por servicio** (`snippets` y `permisos`). Ningún servicio accede a la base de otro |
@@ -426,7 +426,7 @@ Si se quiere cambiar la contraseña de la base, hay que hacerlo en el `.env` **a
 docker compose -f docker-compose.sistema.yml up --build
 ```
 
-**Solo Snippet Service** y su base:
+**Solo Snippet Service**, su base y el Snippet Storage (Asset Service + Azurite):
 
 ```bash
 docker compose up --build
@@ -440,8 +440,10 @@ docker compose up --build
 | Permission Service | http://localhost:8081 |
 | Postgres `snippets` | `localhost:5433` |
 | Postgres `permisos` | `localhost:5434` |
+| Asset Service (Snippet Storage) | http://localhost:8082 (Swagger en http://localhost:8082/swagger-ui) |
+| Azurite (bucket) | Sin puerto: solo lo usa el Asset Service, por la red interna |
 
-Los puertos de Postgres solo se publican en `127.0.0.1`: las bases no son accesibles desde otras máquinas de la red.
+Los puertos de Postgres y del Asset Service solo se publican en `127.0.0.1`: no son accesibles desde otras máquinas de la red. Los archivos de los snippets quedan en el volumen `azurite-data` y sobreviven a cada reinicio.
 
 Para comprobar que un servicio está arriba y conectado a su base: http://localhost:8080/actuator/health (o `8081`) tiene que responder `"status":"UP"`, con `db` también en `UP`.
 
