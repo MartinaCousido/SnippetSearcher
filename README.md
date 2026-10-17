@@ -142,7 +142,9 @@ let saludo: string = "Hola " + nombre
 println(saludo);
 ```
 
-> ❌ Snippet inválido: falta `;` al final de la declaración. Línea 1, columna 38.
+> ❌ Snippet inválido: falta `;` al final de la declaración (regla `MISSING_SEMICOLON`). Línea 2, columnas 1 a 7.
+
+La posición es la del `println`: como la línea 1 no termina con `;`, la declaración sigue, y la librería marca el lugar donde esperaba el `;`.
 
 No se guarda nada.
 
