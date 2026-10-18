@@ -272,6 +272,72 @@ La cola de mensajes (Redis Streams) para el formateo y linting en segundo plano 
 6. En segundo plano, Snippet Service lintea el snippet y actualiza su estado (`COMPLIANT`, `NOT_COMPLIANT` o `FAILED`).
 7. Corre los tests del snippet, si tiene (#16).
 
+## Contrato con la UI
+
+La UI de la cátedra le pide todo al backend a través de la interfaz `SnippetOperations` (`src/utils/snippetOperations.ts` en [SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui)). Nuestra implementación, `ApiSnippetOperations`, llama a estos endpoints.
+
+### Una sola URL, con reverse proxy
+
+La UI tiene una sola variable, `BACKEND_URL`, y los tests de Cypress de la cátedra la usan así (`BACKEND_URL + "/snippets"`). Por eso la UI no conoce a cada servicio: le habla a un **reverse proxy**, que recibe todos los pedidos en una dirección y le pasa cada uno al servicio que corresponde según la ruta.
+
+| Ruta que pide la UI | Va a |
+|---|---|
+| `/api/snippets…`, `/api/rules…`, `/api/languages` | Snippet Service |
+| `/api/permissions…` | Permission Service |
+
+- El proxy **saca el `/api`**: los servicios exponen `/snippets`, `/permissions`, etc., sin prefijo. Así su código no depende de cómo se publiquen.
+- Como la UI y los servicios quedan en la misma dirección, no hace falta configurar CORS (el navegador bloquea por defecto que una página llame a otra dirección).
+
+| Dónde | Proxy | `BACKEND_URL` |
+|---|---|---|
+| Local | El proxy del servidor de desarrollo de Vite (`vite.config.ts` de la UI) | `http://localhost:5173/api` |
+| VM | nginx en `docker-stack.yml`, en el puerto 80. También sirve la UI | `http://<vm>/api` |
+
+### Endpoints
+
+| Método de la UI | Endpoint | Respuesta |
+|---|---|---|
+| `listSnippetDescriptors(page, pageSize, name?)` | `GET /snippets?page=&page_size=&name=` | `{ page, page_size, count, snippets: Snippet[] }`. `page` empieza en 0. `name` filtra por nombre (contiene, sin distinguir mayúsculas). Devuelve los snippets propios y los compartidos |
+| `createSnippet(snippet)` | `POST /snippets` | `Snippet`. **400** con `{ diagnostics: Diagnostic[] }` si el código no es válido |
+| `getSnippetById(id)` | `GET /snippets/{id}` | `Snippet`. 404 si no existe, 403 si no tiene acceso |
+| `updateSnippetById(id, {content})` | `PUT /snippets/{id}` | `Snippet`. Misma validación y errores que crear. Solo el owner |
+| `deleteSnippet(id)` | `DELETE /snippets/{id}` | 204. Solo el owner |
+| `shareSnippet(snippetId, userId)` | `POST /permissions/{snippetId}/share` y después `GET /snippets/{snippetId}` | El `Snippet` |
+| `getFileTypes()` | `GET /languages` | `[{ language, extension }]`, de la configuración de lenguajes de Snippet Service |
+| `formatSnippet(snippetId, content)` | `POST /snippets/{id}/format` con `{ content }` | `{ content }` con el código formateado, según las reglas del owner |
+| `getFormatRules()` / `modifyFormatRule(rules)` | `GET` / `PUT /rules/format` | `Rule[]` del usuario |
+| `getLintingRules()` / `modifyLintingRule(rules)` | `GET` / `PUT /rules/lint` | `Rule[]` del usuario |
+| `getTestCases(snippetId)` | `GET /snippets/{id}/tests` | `TestCase[]` |
+| `postTestCase(snippetId, test)` | `POST /snippets/{id}/tests` | `TestCase`. Solo el owner |
+| `removeTestCase(snippetId, testId)` | `DELETE /snippets/{id}/tests/{testId}` | 204. Solo el owner |
+| `testSnippet(snippetId, test)` | `POST /snippets/{id}/tests/run` con `{ input, output }` | `{ result: "success" \| "fail" }` |
+| `getUserFriends(name, page, pageSize)` | — | Sigue con datos falsos mientras el módulo User esté en standby |
+
+Todos los pedidos llevan el token de Auth0 (`Authorization: Bearer …`) cuando esté Auth0.
+
+### Formatos
+
+```
+Snippet  = { id, name, description, language, version, extension, content, compliance, author }
+Rule     = { id, name, isActive, value }
+TestCase = { id, name, input: string[], output: string[] }
+```
+
+- `compliance` usa los valores de la UI: `pending`, `failed`, `not-compliant`, `compliant`.
+- `author` es el `userId` de Auth0 del owner, hasta que exista el módulo User.
+- `description` y `version` no los manda la UI de la cátedra: son opcionales al crear. La versión toma la `default-version` del lenguaje.
+- `Diagnostic` es el formato de [Decisiones técnicas](#decisiones-técnicas): `{ rule, message, range: { start: { line, column }, end: { line, column } } }`.
+
+### Cambios a la UI de la cátedra
+
+- **`snippetId` en los métodos de tests y de formateo** (`getTestCases`, `postTestCase`, `removeTestCase`, `testSnippet`, `formatSnippet`). La interfaz original no lo recibe, y sin él no se sabe a qué snippet pertenece un test ni con qué lenguaje y reglas formatear. La pantalla de detalle ya tiene el snippet abierto.
+- **Métodos sin endpoint todavía:** `ApiSnippetOperations` le pasa esos pedidos a `FakeSnippetOperations`, la implementación falsa de la cátedra. Cada vez que se termina un endpoint, su método pasa a llamar al backend. Así la UI nunca se rompe y en el código se ve qué falta.
+
+### Limitaciones conocidas
+
+- La UI no permite filtrar el listado por relación (propios, compartidos o ambos), que pide la US-5. El endpoint devuelve los dos.
+- El listado incluye el `content` de cada snippet, porque el tipo `Snippet` de la UI lo tiene. Cada página lee esos archivos del Snippet Storage.
+
 ## Decisiones técnicas
 
 Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no se asume: se consulta con el equipo antes de implementarlo, y la decisión se registra acá.
@@ -287,7 +353,7 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Librería de PrintScript | ✅ Definido | **[MartinaCousido/PrintScript](https://github.com/MartinaCousido/PrintScript) `0.3.0`**: copia propia e independiente de la librería del TP anterior (`ingsis-ua/ingsis-interpreter`), con Java 25. Se publica en GitHub Packages como `org.printscript:<módulo>:0.3.0` (por ejemplo `org.printscript:runner`), desde `https://maven.pkg.github.com/MartinaCousido/PrintScript`. Bajarla pide un token con `read:packages`, también en el CI y en el build de Docker del servicio que la use |
 | Repo de la UI | ✅ Definido | [SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui): un *fork* (copia vinculada) de la UI de la cátedra, [austral-ingsis/printscript-ui](https://github.com/austral-ingsis/printscript-ui). Con *Sync fork* se traen los cambios de la cátedra. No usa `dev` ni `main`: las ramas salen de `master` y los PRs van hacia `master` |
 | Contrato con Permission Service | ✅ Definido | Cuatro endpoints. **Registrar owner:** `POST /permissions/{snippetId}/owner` → 201. **Compartir:** `POST /permissions/{snippetId}/share` con `{ "userId": "auth0\|juan" }` → 201, o 403 si quien comparte no es el owner. **¿Puede leer o escribir?:** `GET /permissions/{snippetId}` → `{ "canRead": true, "canWrite": false }`. **Snippets accesibles:** `GET /permissions/snippets?relation=owner\|shared\|all` → lista de ids. El `userId` de quien pide sale siempre del JWT: Snippet Service le **reenvía el token del usuario**, nunca le manda el `userId`. Detalle en el [README de SnippetPermission](https://github.com/MartinaCousido/SnippetPermission#operaciones) |
-| Contrato con la UI de la cátedra | ⏳ Pendiente | La UI se conecta al backend con nuestra implementación de `src/utils/snippetOperations.ts`. Falta definir los endpoints y DTOs que salen de esa interfaz (#14) |
+| Contrato con la UI de la cátedra | ✅ Definido | Endpoints y formatos que salen de `src/utils/snippetOperations.ts`, más el reverse proxy que deja a la UI con una sola `BACKEND_URL`. Ver [Contrato con la UI](#contrato-con-la-ui) |
 | Snippet Storage (bucket) | ✅ Definido | Lo provee la cátedra (clase del 2026-10-13): el **[Asset Service](https://github.com/austral-ingsis/asset-service)** (imagen `ghcr.io/austral-ingsis/snippet-asset-service`), sobre un bucket emulado con **Azurite**. Expone `GET`, `PUT` y `DELETE` en `/v1/asset/{container}/{key}`. En Postgres va solo la referencia al archivo. Su imagen se baja de GHCR con login. Se suma al stack en [SnippetSearcher-infra#14](https://github.com/MartinaCousido/SnippetSearcher-infra/issues/14) |
 | Servicio de PrintScript | ✅ Definido | **Repo propio: [SnippetPrintScript](https://github.com/MartinaCousido/SnippetPrintScript)**, con el mismo flujo que los otros servicios (`dev` → VM de dev, `main` → VM de prod), los mismos rulesets y los Environments `dev` y `prod`. No copia el código del lenguaje: usa la librería publicada en GitHub Packages (`org.printscript:runner:0.3.0`), y la baja con el secret `PACKAGES_TOKEN` del repo (token classic con solo `read:packages`). Se descartó ponerlo dentro del repo de la librería: ese repo trabaja solo con `master`, publica versiones de librería y no imágenes, y sumarle Spring Boot obligaba a mantener sus checksums en `verification-metadata.xml`. Imagen `ghcr.io/martinacousido/printscript-service`, nombre en el stack `printscript-service`, puerto local `8083`. Snippet Service lo encuentra con la variable `PRINTSCRIPT_SERVICE_URL` |
 | Contrato del servicio de PrintScript | ✅ Definido | `POST /validate` con `{ "code": "...", "version": "1.1" }`. Responde **200** con `{ "diagnostics": [ { "rule": "MISSING_SEMICOLON", "message": "...", "range": { "start": { "line": 1, "column": 38 }, "end": { "line": 1, "column": 38 } } } ] }`, con el formato de `Diagnostic`. Lista vacía = el código es válido. Una versión que el servicio no conoce responde **400**. `lint`, `format` y `evaluate` se definen cuando se implementen |
