@@ -34,11 +34,16 @@ public class Snippet {
 	@Column(nullable = false)
 	private Compliance compliance;
 
+	// Quién lo creó: su owner.
+	@Column(nullable = false)
+	private String author;
+
 	protected Snippet() {
 		// Lo pide JPA.
 	}
 
-	public Snippet(UUID id, String name, String description, String language, String version, String contentKey) {
+	public Snippet(UUID id, String name, String description, String language, String version, String contentKey,
+			String author) {
 		this.id = id;
 		this.name = name;
 		this.description = description;
@@ -46,6 +51,7 @@ public class Snippet {
 		this.version = version;
 		this.contentKey = contentKey;
 		this.compliance = Compliance.PENDING;
+		this.author = author;
 	}
 
 	public UUID id() {
@@ -74,5 +80,9 @@ public class Snippet {
 
 	public Compliance compliance() {
 		return compliance;
+	}
+
+	public String author() {
+		return author;
 	}
 }

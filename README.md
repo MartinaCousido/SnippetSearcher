@@ -297,7 +297,7 @@ La UI tiene una sola variable, `BACKEND_URL`, y los tests de Cypress de la cáte
 
 | Método de la UI | Endpoint | Respuesta |
 |---|---|---|
-| `listSnippetDescriptors(page, pageSize, name?)` | `GET /snippets?page=&page_size=&name=` | `{ page, page_size, count, snippets: Snippet[] }`. `page` empieza en 0. `name` filtra por nombre (contiene, sin distinguir mayúsculas). Devuelve los snippets propios y los compartidos |
+| `listSnippetDescriptors(page, pageSize, name?)` | `GET /snippets?page=&page_size=&name=` | `{ page, page_size, count, snippets: Snippet[] }`. `page` empieza en 0 y `page_size` va de 1 a 100. `name` filtra por nombre (contiene, sin distinguir mayúsculas). Ordenado por nombre. `relation=owner\|shared\|all` elige propios, compartidos o ambos; la UI no lo manda, así que por defecto son ambos |
 | `createSnippet(snippet)` | `POST /snippets` | `Snippet`. **400** con `{ diagnostics: Diagnostic[] }` si el código no es válido |
 | `getSnippetById(id)` | `GET /snippets/{id}` | `Snippet`. 404 si no existe, 403 si no tiene acceso |
 | `updateSnippetById(id, {content})` | `PUT /snippets/{id}` | `Snippet`. Misma validación y errores que crear. Solo el owner |
@@ -324,7 +324,7 @@ TestCase = { id, name, input: string[], output: string[] }
 ```
 
 - `compliance` usa los valores de la UI: `pending`, `failed`, `not-compliant`, `compliant`.
-- `author` es el `userId` de Auth0 del owner, hasta que exista el módulo User.
+- `author` es el `userId` de Auth0 del owner, hasta que exista el módulo User. Snippet Service lo guarda al crear el snippet (ver Decisiones técnicas).
 - `description` y `version` no los manda la UI de la cátedra: son opcionales al crear. La versión toma la `default-version` del lenguaje: para PrintScript es **`1.1`**.
 - `Diagnostic` es el formato de [Decisiones técnicas](#decisiones-técnicas): `{ rule, message, range: { start: { line, column }, end: { line, column } } }`.
 
@@ -335,7 +335,8 @@ TestCase = { id, name, input: string[], output: string[] }
 
 ### Limitaciones conocidas
 
-- La UI no permite filtrar el listado por relación (propios, compartidos o ambos), que pide la US-5. El endpoint devuelve los dos.
+- La UI no permite filtrar el listado por relación (propios, compartidos o ambos), que pide la US-5. El endpoint lo acepta (`relation`), pero la UI no lo manda: muestra los dos.
+- La UI tampoco permite filtrar ni ordenar por lenguaje o validez, que pide la US-5. El endpoint ordena por nombre.
 - El listado incluye el `content` de cada snippet, porque el tipo `Snippet` de la UI lo tiene. Cada página lee esos archivos del Snippet Storage.
 
 ## Decisiones técnicas
@@ -367,6 +368,7 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Versión formateada (US-13) | ✅ Definido | **Se guarda.** El formateo en segundo plano (US-12) guarda el resultado como un segundo archivo en el Snippet Storage; el original no se toca. La descarga lee uno o el otro |
 | Auth0 | ⏳ Pendiente | Crear el tenant, la app de la UI y la API. Queda para más adelante |
 | Usuario mientras no esté Auth0 | ✅ Definido (temporal) | Hasta que esté Auth0, Snippet Service y Permission Service usan un **usuario fijo, `dev-user`**. En cada servicio, una sola clase responde quién es el usuario que pide: hoy devuelve `dev-user`, y con Auth0 lo va a sacar del JWT. Snippet Service llama a Permission Service sin token; el contrato no cambia, porque con Auth0 le va a reenviar el token. Permite cerrar las user stories de punta a punta y que pasen los tests de Cypress, que tienen el login comentado. Se reemplaza al hacer Auth0 |
+| Autor de cada snippet | ✅ Definido | Snippet Service guarda en la tabla `snippets` quién lo creó (`author`, el `userId`). El listado lo muestra sin preguntarle a Permission Service por cada snippet. El owner no cambia nunca, así que el dato no se desactualiza. Permission Service sigue siendo quien decide los permisos |
 | Versión por defecto de PrintScript | ✅ Definido | **`1.1`**, la más completa (`const`, `if`, `readInput`). Se usa cuando la UI no manda la versión. La extensión de los archivos es **`ps`**: es la que usan los tests de Cypress de la cátedra (`example_ps.ps`). Los lenguajes, sus versiones y su extensión se configuran en `application.properties` (`languages.<nombre>.*`) |
 | Módulo User | ⏳ Pendiente | En qué servicio vive la búsqueda de usuarios (US-7). Se consulta con la cátedra |
 | Framework de tests | ✅ Definido | **JUnit 5**, con los starters de test de Spring Boot (lo que genera Spring Initializr). Los tests necesitan la base levantada. Ver [Correr los tests](#correr-los-tests) |

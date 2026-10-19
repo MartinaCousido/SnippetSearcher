@@ -1,7 +1,10 @@
 package com.snippetsearcher.snippets.snippet;
 
+import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -47,17 +50,39 @@ public class SnippetService {
 		try {
 			var snippet = transaction.execute(status -> {
 				var saved = repository.saveAndFlush(new Snippet(id, request.name(), description,
-						language.name(), language.version(), contentKey));
+						language.name(), language.version(), contentKey, currentUser.id()));
 				permissions.registerOwner(id);
 				return saved;
 			});
 			return new SnippetResponse(id.toString(), snippet.name(), snippet.description(), snippet.language(),
 					snippet.version(), language.extension(), request.content(), snippet.compliance(),
-					currentUser.id());
+					snippet.author());
 		} catch (RuntimeException e) {
 			deleteQuietly(contentKey, e);
 			throw e;
 		}
+	}
+
+	// Lista los snippets del usuario (US-5): los propios, los compartidos o
+	// todos, filtrados por nombre y ordenados por nombre. page empieza en 0.
+	public SnippetPage list(int page, int pageSize, String name, String relation) {
+		List<UUID> ids = permissions.accessibleSnippets(relation);
+		if (ids.isEmpty()) {
+			return new SnippetPage(page, pageSize, 0, List.of());
+		}
+		var found = repository.findByIdInAndNameContainingIgnoreCase(ids, name == null ? "" : name,
+				PageRequest.of(page, pageSize, Sort.by("name").ascending().and(Sort.by("id"))));
+		var snippets = found.getContent().stream().map(this::toResponse).toList();
+		return new SnippetPage(page, pageSize, found.getTotalElements(), snippets);
+	}
+
+	// El listado lleva el código de cada snippet, porque el Snippet de la UI lo
+	// tiene: se lee del Snippet Storage.
+	private SnippetResponse toResponse(Snippet snippet) {
+		var extension = languages.resolve(snippet.language(), snippet.version()).extension();
+		var content = storage.get(snippet.contentKey()).orElse("");
+		return new SnippetResponse(snippet.id().toString(), snippet.name(), snippet.description(),
+				snippet.language(), snippet.version(), extension, content, snippet.compliance(), snippet.author());
 	}
 
 	// Si borrar el archivo también falla, se responde con el error original: es
