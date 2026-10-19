@@ -1,5 +1,6 @@
 package com.snippetsearcher.snippets.snippet;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -71,7 +72,7 @@ class ListSnippetsTests {
 				.andExpect(jsonPath("$.page").value(0))
 				.andExpect(jsonPath("$.page_size").value(10))
 				.andExpect(jsonPath("$.count").value(3))
-				.andExpect(jsonPath("$.snippets[*].name").value(org.hamcrest.Matchers.contains("bucle", "compartido", "Saludo")))
+				.andExpect(jsonPath("$.snippets[*].name").value(contains("bucle", "compartido", "Saludo")))
 				.andExpect(jsonPath("$.snippets[1].author").value("auth0|otro"))
 				.andExpect(jsonPath("$.snippets[2].content").value("código de " + SALUDO))
 				.andExpect(jsonPath("$.snippets[2].extension").value("ps"))
@@ -83,14 +84,14 @@ class ListSnippetsTests {
 		mvc.perform(get("/snippets").param("relation", "owner"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.count").value(2))
-				.andExpect(jsonPath("$.snippets[*].name").value(org.hamcrest.Matchers.contains("bucle", "Saludo")));
+				.andExpect(jsonPath("$.snippets[*].name").value(contains("bucle", "Saludo")));
 	}
 
 	@Test
 	void sharedListsOnlyTheSnippetsSharedWithTheUser() throws Exception {
 		mvc.perform(get("/snippets").param("relation", "shared"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.snippets[*].name").value(org.hamcrest.Matchers.contains("compartido")));
+				.andExpect(jsonPath("$.snippets[*].name").value(contains("compartido")));
 	}
 
 	@Test
@@ -108,7 +109,7 @@ class ListSnippetsTests {
 				.andExpect(jsonPath("$.page").value(1))
 				.andExpect(jsonPath("$.page_size").value(2))
 				.andExpect(jsonPath("$.count").value(3))
-				.andExpect(jsonPath("$.snippets[*].name").value(org.hamcrest.Matchers.contains("Saludo")));
+				.andExpect(jsonPath("$.snippets[*].name").value(contains("Saludo")));
 	}
 
 	@Test
