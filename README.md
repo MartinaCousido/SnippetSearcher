@@ -325,7 +325,7 @@ TestCase = { id, name, input: string[], output: string[] }
 
 - `compliance` usa los valores de la UI: `pending`, `failed`, `not-compliant`, `compliant`.
 - `author` es el `userId` de Auth0 del owner, hasta que exista el módulo User.
-- `description` y `version` no los manda la UI de la cátedra: son opcionales al crear. La versión toma la `default-version` del lenguaje.
+- `description` y `version` no los manda la UI de la cátedra: son opcionales al crear. La versión toma la `default-version` del lenguaje: para PrintScript es **`1.1`**.
 - `Diagnostic` es el formato de [Decisiones técnicas](#decisiones-técnicas): `{ rule, message, range: { start: { line, column }, end: { line, column } } }`.
 
 ### Cambios a la UI de la cátedra
@@ -366,6 +366,8 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Reglas de lint y formateo | ✅ Definido | **Cada usuario tiene su configuración.** Un snippet se lintea y se formatea con las reglas de su owner. Un usuario con quien se compartió ve ese mismo resultado, así que cada snippet tiene un solo estado de lint |
 | Versión formateada (US-13) | ✅ Definido | **Se guarda.** El formateo en segundo plano (US-12) guarda el resultado como un segundo archivo en el Snippet Storage; el original no se toca. La descarga lee uno o el otro |
 | Auth0 | ⏳ Pendiente | Crear el tenant, la app de la UI y la API. Queda para más adelante |
+| Usuario mientras no esté Auth0 | ✅ Definido (temporal) | Hasta que esté Auth0, Snippet Service y Permission Service usan un **usuario fijo, `dev-user`**. En cada servicio, una sola clase responde quién es el usuario que pide: hoy devuelve `dev-user`, y con Auth0 lo va a sacar del JWT. Snippet Service llama a Permission Service sin token; el contrato no cambia, porque con Auth0 le va a reenviar el token. Permite cerrar las user stories de punta a punta y que pasen los tests de Cypress, que tienen el login comentado. Se reemplaza al hacer Auth0 |
+| Versión por defecto de PrintScript | ✅ Definido | **`1.1`**, la más completa (`const`, `if`, `readInput`). Se usa cuando la UI no manda la versión |
 | Módulo User | ⏳ Pendiente | En qué servicio vive la búsqueda de usuarios (US-7). Se consulta con la cátedra |
 | Framework de tests | ✅ Definido | **JUnit 5**, con los starters de test de Spring Boot (lo que genera Spring Initializr). Los tests necesitan la base levantada. Ver [Correr los tests](#correr-los-tests) |
 | Linter y cobertura | ⏳ Pendiente | Linter y cobertura mínima |
