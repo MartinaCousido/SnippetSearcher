@@ -325,7 +325,7 @@ TestCase = { id, name, input: string[], output: string[] }
 
 - `compliance` usa los valores de la UI: `pending`, `failed`, `not-compliant`, `compliant`.
 - `author` es el `userId` de Auth0 del owner, hasta que exista el módulo User.
-- `description` y `version` no los manda la UI de la cátedra: son opcionales al crear. La versión toma la `default-version` del lenguaje.
+- `description` y `version` no los manda la UI de la cátedra: son opcionales al crear. La versión toma la `default-version` del lenguaje: para PrintScript es **`1.1`**.
 - `Diagnostic` es el formato de [Decisiones técnicas](#decisiones-técnicas): `{ rule, message, range: { start: { line, column }, end: { line, column } } }`.
 
 ### Cambios a la UI de la cátedra
@@ -352,19 +352,22 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Deploy del servicio | ✅ Definido | Después de publicar la imagen, el mismo workflow entra por SSH a la VM del ambiente (`dev` → VM de dev, `main` → VM de prod) y corre `docker service update` con el tag `sha-…` del commit. Actualiza **solo** `snippet-service`: los demás servicios del stack no se reinician. Usa los secrets `VM_HOST`, `VM_USER` y `VM_SSH_KEY` de los *Environments* `dev` y `prod` de este repo. La VM tiene que estar prendida |
 | Librería de PrintScript | ✅ Definido | **[MartinaCousido/PrintScript](https://github.com/MartinaCousido/PrintScript) `0.3.0`**: copia propia e independiente de la librería del TP anterior (`ingsis-ua/ingsis-interpreter`), con Java 25. Se publica en GitHub Packages como `org.printscript:<módulo>:0.3.0` (por ejemplo `org.printscript:runner`), desde `https://maven.pkg.github.com/MartinaCousido/PrintScript`. Bajarla pide un token con `read:packages`, también en el CI y en el build de Docker del servicio que la use |
 | Repo de la UI | ✅ Definido | [SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui): un *fork* (copia vinculada) de la UI de la cátedra, [austral-ingsis/printscript-ui](https://github.com/austral-ingsis/printscript-ui). Con *Sync fork* se traen los cambios de la cátedra. No usa `dev` ni `main`: las ramas salen de `master` y los PRs van hacia `master` |
-| Contrato con Permission Service | ✅ Definido | Cuatro endpoints. **Registrar owner:** `POST /permissions/{snippetId}/owner` → 201. **Compartir:** `POST /permissions/{snippetId}/share` con `{ "userId": "auth0\|juan" }` → 201, o 403 si quien comparte no es el owner. **¿Puede leer o escribir?:** `GET /permissions/{snippetId}` → `{ "canRead": true, "canWrite": false }`. **Snippets accesibles:** `GET /permissions/snippets?relation=owner\|shared\|all` → lista de ids. El `userId` de quien pide sale siempre del JWT: Snippet Service le **reenvía el token del usuario**, nunca le manda el `userId`. Detalle en el [README de SnippetPermission](https://github.com/MartinaCousido/SnippetPermission#operaciones) |
+| Contrato con Permission Service | ✅ Definido | Cuatro endpoints. **Registrar owner:** `POST /permissions/{snippetId}/owner` → 201. Si ya es el owner, no hace nada y responde 201 igual (así Snippet Service puede reintentar); **409** si el snippet ya tiene otro owner, o si el usuario ya tiene otro permiso sobre el snippet. **Compartir:** `POST /permissions/{snippetId}/share` con `{ "userId": "auth0\|juan" }` → 201, o 403 si quien comparte no es el owner. **¿Puede leer o escribir?:** `GET /permissions/{snippetId}` → `{ "canRead": true, "canWrite": false }`. **Snippets accesibles:** `GET /permissions/snippets?relation=owner\|shared\|all` → lista de ids. El `userId` de quien pide sale siempre del JWT: Snippet Service le **reenvía el token del usuario**, nunca le manda el `userId`. Detalle en el [README de SnippetPermission](https://github.com/MartinaCousido/SnippetPermission#operaciones) |
 | Contrato con la UI de la cátedra | ✅ Definido | Endpoints y formatos que salen de `src/utils/snippetOperations.ts`, más el reverse proxy que deja a la UI con una sola `BACKEND_URL`. Ver [Contrato con la UI](#contrato-con-la-ui) |
-| Snippet Storage (bucket) | ✅ Definido | Lo provee la cátedra (clase del 2026-10-13): el **[Asset Service](https://github.com/austral-ingsis/asset-service)** (imagen `ghcr.io/austral-ingsis/snippet-asset-service`), sobre un bucket emulado con **Azurite**. Expone `GET`, `PUT` y `DELETE` en `/v1/asset/{container}/{key}`. En Postgres va solo la referencia al archivo. Su imagen se baja de GHCR con login. Se suma al stack en [SnippetSearcher-infra#14](https://github.com/MartinaCousido/SnippetSearcher-infra/issues/14) |
+| Snippet Storage (bucket) | ✅ Definido | Lo provee la cátedra (clase del 2026-10-13): el **[Asset Service](https://github.com/austral-ingsis/asset-service)** (imagen `ghcr.io/austral-ingsis/snippet-asset-service`), sobre un bucket emulado con **Azurite**. Expone `GET`, `PUT` y `DELETE` en `/v1/asset/{container}/{key}`. En Postgres va solo la referencia al archivo. La imagen es pública: se baja sin login. Se suma al stack en [SnippetSearcher-infra#14](https://github.com/MartinaCousido/SnippetSearcher-infra/issues/14) |
 | Servicio de PrintScript | ✅ Definido | **Repo propio: [SnippetPrintScript](https://github.com/MartinaCousido/SnippetPrintScript)**, con el mismo flujo que los otros servicios (`dev` → VM de dev, `main` → VM de prod), los mismos rulesets y los Environments `dev` y `prod`. No copia el código del lenguaje: usa la librería publicada en GitHub Packages (`org.printscript:runner:0.3.0`), y la baja con el secret `PACKAGES_TOKEN` del repo (token classic con solo `read:packages`). Se descartó ponerlo dentro del repo de la librería: ese repo trabaja solo con `master`, publica versiones de librería y no imágenes, y sumarle Spring Boot obligaba a mantener sus checksums en `verification-metadata.xml`. Imagen `ghcr.io/martinacousido/printscript-service`, nombre en el stack `printscript-service`, puerto local `8083`. Snippet Service lo encuentra con la variable `PRINTSCRIPT_SERVICE_URL` |
 | Contrato del servicio de PrintScript | ✅ Definido | `POST /validate` con `{ "code": "...", "version": "1.1" }`. Responde **200** con `{ "diagnostics": [ { "rule": "MISSING_SEMICOLON", "message": "...", "range": { "start": { "line": 1, "column": 38 }, "end": { "line": 1, "column": 38 } } } ] }`, con el formato de `Diagnostic`. Lista vacía = el código es válido. Una versión que el servicio no conoce responde **400**. `lint`, `format` y `evaluate` se definen cuando se implementen |
 | Base de datos | ✅ Definido | **PostgreSQL 17, un contenedor por servicio** (`snippets` y `permisos`). Ningún servicio accede a la base de otro |
 | Migraciones | ✅ Definido | **Flyway**. Cada cambio de esquema es un archivo SQL numerado en `src/main/resources/db/migration` (`V1__crear_snippets.sql`, `V2__…`). Spring Boot los aplica en orden al arrancar y recuerda cuáles ya corrió. Se mantiene `ddl-auto: none`: Hibernate no toca el esquema |
+| Id de los snippets | ✅ Definido | **UUID**, generado por Snippet Service. No deja adivinar los ids de otros usuarios, y es el formato que usa la UI. Es también la clave del archivo en el Snippet Storage |
 | Interfaz `Language` | ✅ Definido | Cuatro operaciones: `validate` (revisa sintaxis y semántica sin ejecutar), `lint`, `format` y `evaluate` (ejecutar). Reciben **el código**, nunca el id del snippet: así se puede validar antes de guardar, y los servicios de lenguaje no conocen el Snippet Storage. `validate` y `lint` devuelven una lista de `Diagnostic`. Ver [Módulos](#módulos) |
 | `Diagnostic` | ✅ Definido | Un problema en el código, igual para todos los lenguajes. Tiene **el nombre de la regla incumplida** (lo pide la US-1), un mensaje y un `Range`: línea y columna de inicio y de fin. Cada servicio de lenguaje traduce los errores de su librería a este formato. En PrintScript, el nombre de la regla sale del **código de regla** de la librería (desde `0.3.0`): `Failure.code()` en los errores y `Violation.rule()` en el lint; no se deduce del texto del mensaje, porque cambiaría sin aviso si cambia el mensaje |
-| Organización del código | ✅ Definido | **Paquetes por tema**, no por tipo. Snippet Service: `snippet/`, `testcase/`, `rules/`, `clients/`. Permission Service: `permission/`, `security/`. La arquitectura de servicios no cambia |
+| Organización del código | ✅ Definido | **Paquetes por tema**, no por tipo. Snippet Service: `snippet/`, `testcase/`, `rules/`, `clients/`, `language/` (lenguajes soportados y sus versiones) y `security/` (quién es el usuario). Permission Service: `permission/`, `security/`. La arquitectura de servicios no cambia |
 | Reglas de lint y formateo | ✅ Definido | **Cada usuario tiene su configuración.** Un snippet se lintea y se formatea con las reglas de su owner. Un usuario con quien se compartió ve ese mismo resultado, así que cada snippet tiene un solo estado de lint |
 | Versión formateada (US-13) | ✅ Definido | **Se guarda.** El formateo en segundo plano (US-12) guarda el resultado como un segundo archivo en el Snippet Storage; el original no se toca. La descarga lee uno o el otro |
 | Auth0 | ⏳ Pendiente | Crear el tenant, la app de la UI y la API. Queda para más adelante |
+| Usuario mientras no esté Auth0 | ✅ Definido (temporal) | Hasta que esté Auth0, Snippet Service y Permission Service usan un **usuario fijo, `dev-user`**. En cada servicio, una sola clase responde quién es el usuario que pide: hoy devuelve `dev-user`, y con Auth0 lo va a sacar del JWT. Snippet Service llama a Permission Service sin token; el contrato no cambia, porque con Auth0 le va a reenviar el token. Permite cerrar las user stories de punta a punta y que pasen los tests de Cypress, que tienen el login comentado. Se reemplaza al hacer Auth0 |
+| Versión por defecto de PrintScript | ✅ Definido | **`1.1`**, la más completa (`const`, `if`, `readInput`). Se usa cuando la UI no manda la versión. La extensión de los archivos es **`ps`**: es la que usan los tests de Cypress de la cátedra (`example_ps.ps`). Los lenguajes, sus versiones y su extensión se configuran en `application.properties` (`languages.<nombre>.*`) |
 | Módulo User | ⏳ Pendiente | En qué servicio vive la búsqueda de usuarios (US-7). Se consulta con la cátedra |
 | Framework de tests | ✅ Definido | **JUnit 5**, con los starters de test de Spring Boot (lo que genera Spring Initializr). Los tests necesitan la base levantada. Ver [Correr los tests](#correr-los-tests) |
 | Linter y cobertura | ⏳ Pendiente | Linter y cobertura mínima |
@@ -420,13 +423,13 @@ cp .env.example .env
 
 Si se quiere cambiar la contraseña de la base, hay que hacerlo en el `.env` **antes del primer arranque**: Postgres la toma solo cuando crea la base por primera vez. Para cambiarla después hay que borrar los datos (`down -v`) y volver a levantar.
 
-**Sistema completo** (Snippet Service + Permission Service, cada uno con su base). Requiere el repo [SnippetPermission](https://github.com/MartinaCousido/SnippetPermission) clonado al lado de este (`../SnippetPermission`), con su propio `.env` creado:
+**Sistema completo** (Snippet Service, Permission Service y el servicio de PrintScript, con sus bases y el Snippet Storage). Requiere los repos [SnippetPermission](https://github.com/MartinaCousido/SnippetPermission) y [SnippetPrintScript](https://github.com/MartinaCousido/SnippetPrintScript) clonados al lado de este (`../SnippetPermission` y `../SnippetPrintScript`), cada uno con su propio `.env` creado. El de SnippetPrintScript lleva el token para bajar la librería (`PACKAGES_TOKEN`, ver su README):
 
 ```bash
 docker compose -f docker-compose.sistema.yml up --build
 ```
 
-**Solo Snippet Service** y su base:
+**Solo Snippet Service**, su base y el Snippet Storage (Asset Service + Azurite):
 
 ```bash
 docker compose up --build
@@ -438,10 +441,13 @@ docker compose up --build
 |---|---|
 | Snippet Service | http://localhost:8080 |
 | Permission Service | http://localhost:8081 |
+| Servicio de PrintScript | http://localhost:8083 |
 | Postgres `snippets` | `localhost:5433` |
 | Postgres `permisos` | `localhost:5434` |
+| Asset Service (Snippet Storage) | http://localhost:8082 (Swagger en http://localhost:8082/swagger-ui) |
+| Azurite (bucket) | Sin puerto: solo lo usa el Asset Service, por la red interna |
 
-Los puertos de Postgres solo se publican en `127.0.0.1`: las bases no son accesibles desde otras máquinas de la red.
+Los puertos de Postgres y del Asset Service solo se publican en `127.0.0.1`: no son accesibles desde otras máquinas de la red. Los archivos de los snippets quedan en el volumen `azurite-data` y sobreviven a cada reinicio.
 
 Para comprobar que un servicio está arriba y conectado a su base: http://localhost:8080/actuator/health (o `8081`) tiene que responder `"status":"UP"`, con `db` también en `UP`.
 
