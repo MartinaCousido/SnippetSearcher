@@ -55,8 +55,18 @@ public class SnippetService {
 					snippet.version(), language.extension(), request.content(), snippet.compliance(),
 					currentUser.id());
 		} catch (RuntimeException e) {
-			storage.delete(contentKey);
+			deleteQuietly(contentKey, e);
 			throw e;
+		}
+	}
+
+	// Si borrar el archivo también falla, se responde con el error original: es
+	// el que explica qué pasó.
+	private void deleteQuietly(String contentKey, RuntimeException cause) {
+		try {
+			storage.delete(contentKey);
+		} catch (RuntimeException deleteFailed) {
+			cause.addSuppressed(deleteFailed);
 		}
 	}
 }

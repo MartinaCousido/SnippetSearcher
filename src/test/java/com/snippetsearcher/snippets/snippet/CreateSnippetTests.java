@@ -158,6 +158,17 @@ class CreateSnippetTests {
 	}
 
 	@Test
+	void ifDeletingTheFileAlsoFailsTheOriginalErrorIsReported() throws Exception {
+		doThrow(new ResourceAccessException("Permission Service no responde"))
+				.when(permissions).registerOwner(any(UUID.class));
+		doThrow(new ResourceAccessException("Asset Service no responde")).when(storage).delete(anyString());
+
+		create(body("printscript", "1.1")).andExpect(status().isBadGateway());
+
+		assertThat(repository.count()).isZero();
+	}
+
+	@Test
 	void ifPrintScriptDoesNotAnswerNothingIsSaved() throws Exception {
 		when(printScript.validate(anyString(), anyString()))
 				.thenThrow(new ResourceAccessException("PrintScript no responde"));
