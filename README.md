@@ -371,7 +371,7 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Autor de cada snippet | ✅ Definido | Snippet Service guarda en la tabla `snippets` quién lo creó (`author`, el `userId`). El listado lo muestra sin preguntarle a Permission Service por cada snippet. El owner no cambia nunca, así que el dato no se desactualiza. Permission Service sigue siendo quien decide los permisos |
 | Versión por defecto de PrintScript | ✅ Definido | **`1.1`**, la más completa (`const`, `if`, `readInput`). Se usa cuando la UI no manda la versión. La extensión de los archivos es **`ps`**: es la que usan los tests de Cypress de la cátedra (`example_ps.ps`). Los lenguajes, sus versiones y su extensión se configuran en `application.properties` (`languages.<nombre>.*`) |
 | Módulo User | ⏳ Pendiente | En qué servicio vive la búsqueda de usuarios (US-7). Se consulta con la cátedra |
-| Framework de tests | ✅ Definido | **JUnit 5**, con los starters de test de Spring Boot (lo que genera Spring Initializr). Los tests necesitan la base levantada. Ver [Correr los tests](#correr-los-tests) |
+| Framework de tests | ✅ Definido | **JUnit 5**, con los starters de test de Spring Boot (lo que genera Spring Initializr). Los tests necesitan la base levantada y usan una base aparte (`snippets_test`, `permisos_test`), porque borran los datos antes de cada test. Ver [Correr los tests](#correr-los-tests) |
 | Linter y cobertura | ⏳ Pendiente | Linter y cobertura mínima |
 | Cola de mensajes | ✅ Definido | **Redis Streams** (clase del 2026-10-13), para lintear y formatear en segundo plano (US-12, US-15). **Snippet Service se manda trabajo a sí mismo:** al crear o editar un snippet, o al cambiar una regla, marca los snippets afectados como `PENDING`, publica un mensaje por cada uno y responde enseguida. Un consumidor del mismo servicio llama a `Language.lint` o `format`, guarda el resultado y confirma el mensaje. Si falla, se reintenta; después del máximo de intentos, el snippet queda en `FAILED` y se sigue con el resto. Pros y contras, y la opción descartada, en #22. Imagen **`redis:8.2`**, con `appendonly` y un volumen, para que los mensajes pendientes sobrevivan a un reinicio de Redis. Snippet Service lo encuentra con la variable **`SPRING_DATA_REDIS_HOST`**, que Spring Boot lee sin configuración extra. Falta definir si hay un stream por tarea o uno solo, y cuántos reintentos. **Implementación propia con Spring Data Redis**, sin la librería de ayuda de la cátedra ([class-redis-streams](https://github.com/austral-ingsis/class-redis-streams)), que es opcional según el profesor. La librería confirma los mensajes al recibirlos (no permite reintentar), su `emit` no se puede llamar desde Java y es reactiva. Lo propio: productor (`XADD`), consumidor con *consumer group* que confirma (`XACK`) recién después de guardar el resultado, y reintento de los mensajes pendientes (`XPENDING` / `XCLAIM`) |
 
@@ -457,13 +457,21 @@ Para bajar todo: `docker compose -f docker-compose.sistema.yml down`. Los datos 
 
 ### Correr los tests
 
-Los tests levantan el servicio completo, así que necesitan la base arriba y las variables de conexión. Con la base levantada (`docker compose up -d snippets-db`):
+Los tests levantan el servicio completo, así que necesitan la base arriba y las variables de conexión. Corren contra una **base aparte, `snippets_test`**, en el mismo contenedor: antes de cada test se borran los datos, y así no se pierden los que usa el servicio levantado en `snippets`.
+
+Con la base levantada (`docker compose up -d snippets-db`), crear la base de tests una sola vez:
 
 ```bash
-DB_URL=jdbc:postgresql://localhost:5433/snippets DB_USER=<usuario> DB_PASSWORD=<contraseña> ./gradlew test
+docker compose exec snippets-db createdb -U <usuario> snippets_test
 ```
 
-Usuario y contraseña son los del `.env`. Sin la base, `./gradlew build` y `./gradlew test` fallan; la imagen de Docker se arma igual porque solo ejecuta `bootJar`.
+Y correr los tests contra ella:
+
+```bash
+DB_URL=jdbc:postgresql://localhost:5433/snippets_test DB_USER=<usuario> DB_PASSWORD=<contraseña> ./gradlew test
+```
+
+Usuario y contraseña son los del `.env`. Si se borran los volúmenes (`down -v`), hay que volver a crear la base de tests. Sin la base, `./gradlew build` y `./gradlew test` fallan; la imagen de Docker se arma igual porque solo ejecuta `bootJar`.
 
 En cada PR hacia `dev` o `main`, el CI (`.github/workflows/ci.yml`) corre `./gradlew build` con una base Postgres 17 descartable. Su check se llama `compilar-y-testear` y es obligatorio para mergear.
 
