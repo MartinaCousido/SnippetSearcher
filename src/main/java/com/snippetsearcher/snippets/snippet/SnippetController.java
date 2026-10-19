@@ -1,11 +1,14 @@
 package com.snippetsearcher.snippets.snippet;
 
+import java.util.UUID;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,6 +30,12 @@ public class SnippetController {
 	@PostMapping
 	public SnippetResponse create(@Valid @RequestBody CreateSnippetRequest request) {
 		return service.create(request);
+	}
+
+	// getSnippetById() de la UI. Un id que no es un UUID responde 400.
+	@GetMapping("/{id}")
+	public SnippetResponse get(@PathVariable UUID id) {
+		return service.get(id);
 	}
 
 	// listSnippetDescriptors() de la UI. relation no lo manda la UI de la

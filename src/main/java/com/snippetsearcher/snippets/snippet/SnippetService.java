@@ -76,6 +76,17 @@ public class SnippetService {
 		return new SnippetPage(page, pageSize, found.getTotalElements(), snippets);
 	}
 
+	// Un snippet (US-6). Lo ven el owner y los usuarios con quienes se
+	// compartió. Primero se busca: si no existe es 404, no 403.
+	public SnippetResponse get(UUID id) {
+		var snippet = repository.findById(id).orElseThrow(() -> new SnippetNotFoundException(id));
+		var access = permissions.access(id);
+		if (access == null || !access.canRead()) {
+			throw new SnippetAccessDeniedException(id);
+		}
+		return toResponse(snippet);
+	}
+
 	// El listado lleva el código de cada snippet, porque el Snippet de la UI lo
 	// tiene: se lee del Snippet Storage.
 	private SnippetResponse toResponse(Snippet snippet) {

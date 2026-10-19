@@ -12,4 +12,7 @@ public interface PermissionClient {
 	// Los ids de los snippets a los que tiene acceso el usuario que pide:
 	// relation es owner, shared o all.
 	List<UUID> accessibleSnippets(String relation);
+
+	// Si el usuario que pide puede leer o escribir el snippet.
+	Access access(UUID snippetId);
 }

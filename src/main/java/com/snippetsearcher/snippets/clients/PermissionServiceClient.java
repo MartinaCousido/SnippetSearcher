@@ -37,4 +37,12 @@ public class PermissionServiceClient implements PermissionClient {
 				});
 		return ids == null ? List.of() : ids;
 	}
+
+	@Override
+	public Access access(UUID snippetId) {
+		return client.get()
+				.uri("/permissions/{snippetId}", snippetId)
+				.retrieve()
+				.body(Access.class);
+	}
 }
