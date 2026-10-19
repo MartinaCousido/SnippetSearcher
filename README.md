@@ -362,12 +362,12 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Id de los snippets | ✅ Definido | **UUID**, generado por Snippet Service. No deja adivinar los ids de otros usuarios, y es el formato que usa la UI. Es también la clave del archivo en el Snippet Storage |
 | Interfaz `Language` | ✅ Definido | Cuatro operaciones: `validate` (revisa sintaxis y semántica sin ejecutar), `lint`, `format` y `evaluate` (ejecutar). Reciben **el código**, nunca el id del snippet: así se puede validar antes de guardar, y los servicios de lenguaje no conocen el Snippet Storage. `validate` y `lint` devuelven una lista de `Diagnostic`. Ver [Módulos](#módulos) |
 | `Diagnostic` | ✅ Definido | Un problema en el código, igual para todos los lenguajes. Tiene **el nombre de la regla incumplida** (lo pide la US-1), un mensaje y un `Range`: línea y columna de inicio y de fin. Cada servicio de lenguaje traduce los errores de su librería a este formato. En PrintScript, el nombre de la regla sale del **código de regla** de la librería (desde `0.3.0`): `Failure.code()` en los errores y `Violation.rule()` en el lint; no se deduce del texto del mensaje, porque cambiaría sin aviso si cambia el mensaje |
-| Organización del código | ✅ Definido | **Paquetes por tema**, no por tipo. Snippet Service: `snippet/`, `testcase/`, `rules/`, `clients/`. Permission Service: `permission/`, `security/`. La arquitectura de servicios no cambia |
+| Organización del código | ✅ Definido | **Paquetes por tema**, no por tipo. Snippet Service: `snippet/`, `testcase/`, `rules/`, `clients/`, `language/` (lenguajes soportados y sus versiones) y `security/` (quién es el usuario). Permission Service: `permission/`, `security/`. La arquitectura de servicios no cambia |
 | Reglas de lint y formateo | ✅ Definido | **Cada usuario tiene su configuración.** Un snippet se lintea y se formatea con las reglas de su owner. Un usuario con quien se compartió ve ese mismo resultado, así que cada snippet tiene un solo estado de lint |
 | Versión formateada (US-13) | ✅ Definido | **Se guarda.** El formateo en segundo plano (US-12) guarda el resultado como un segundo archivo en el Snippet Storage; el original no se toca. La descarga lee uno o el otro |
 | Auth0 | ⏳ Pendiente | Crear el tenant, la app de la UI y la API. Queda para más adelante |
 | Usuario mientras no esté Auth0 | ✅ Definido (temporal) | Hasta que esté Auth0, Snippet Service y Permission Service usan un **usuario fijo, `dev-user`**. En cada servicio, una sola clase responde quién es el usuario que pide: hoy devuelve `dev-user`, y con Auth0 lo va a sacar del JWT. Snippet Service llama a Permission Service sin token; el contrato no cambia, porque con Auth0 le va a reenviar el token. Permite cerrar las user stories de punta a punta y que pasen los tests de Cypress, que tienen el login comentado. Se reemplaza al hacer Auth0 |
-| Versión por defecto de PrintScript | ✅ Definido | **`1.1`**, la más completa (`const`, `if`, `readInput`). Se usa cuando la UI no manda la versión |
+| Versión por defecto de PrintScript | ✅ Definido | **`1.1`**, la más completa (`const`, `if`, `readInput`). Se usa cuando la UI no manda la versión. La extensión de los archivos es **`ps`**: es la que usan los tests de Cypress de la cátedra (`example_ps.ps`). Los lenguajes, sus versiones y su extensión se configuran en `application.properties` (`languages.<nombre>.*`) |
 | Módulo User | ⏳ Pendiente | En qué servicio vive la búsqueda de usuarios (US-7). Se consulta con la cátedra |
 | Framework de tests | ✅ Definido | **JUnit 5**, con los starters de test de Spring Boot (lo que genera Spring Initializr). Los tests necesitan la base levantada. Ver [Correr los tests](#correr-los-tests) |
 | Linter y cobertura | ⏳ Pendiente | Linter y cobertura mínima |
@@ -423,7 +423,7 @@ cp .env.example .env
 
 Si se quiere cambiar la contraseña de la base, hay que hacerlo en el `.env` **antes del primer arranque**: Postgres la toma solo cuando crea la base por primera vez. Para cambiarla después hay que borrar los datos (`down -v`) y volver a levantar.
 
-**Sistema completo** (Snippet Service + Permission Service, cada uno con su base). Requiere el repo [SnippetPermission](https://github.com/MartinaCousido/SnippetPermission) clonado al lado de este (`../SnippetPermission`), con su propio `.env` creado:
+**Sistema completo** (Snippet Service, Permission Service y el servicio de PrintScript, con sus bases y el Snippet Storage). Requiere los repos [SnippetPermission](https://github.com/MartinaCousido/SnippetPermission) y [SnippetPrintScript](https://github.com/MartinaCousido/SnippetPrintScript) clonados al lado de este (`../SnippetPermission` y `../SnippetPrintScript`), cada uno con su propio `.env` creado. El de SnippetPrintScript lleva el token para bajar la librería (`PACKAGES_TOKEN`, ver su README):
 
 ```bash
 docker compose -f docker-compose.sistema.yml up --build
@@ -441,6 +441,7 @@ docker compose up --build
 |---|---|
 | Snippet Service | http://localhost:8080 |
 | Permission Service | http://localhost:8081 |
+| Servicio de PrintScript | http://localhost:8083 |
 | Postgres `snippets` | `localhost:5433` |
 | Postgres `permisos` | `localhost:5434` |
 | Asset Service (Snippet Storage) | http://localhost:8082 (Swagger en http://localhost:8082/swagger-ui) |

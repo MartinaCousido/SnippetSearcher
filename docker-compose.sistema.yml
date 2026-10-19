@@ -1,6 +1,6 @@
 # Levanta el sistema completo: cada servicio con su propia base de datos.
-# Requiere el repo SnippetPermission clonado al lado de este (../SnippetPermission),
-# con su propio .env creado.
+# Requiere los repos SnippetPermission y SnippetPrintScript clonados al lado de
+# este (../SnippetPermission y ../SnippetPrintScript), cada uno con su .env creado.
 # Uso: docker compose -f docker-compose.sistema.yml up --build
 #
 # No repite la definición de los servicios: incluye el compose de cada repo.
@@ -10,3 +10,4 @@ name: snippet-searcher
 include:
   - docker-compose.yml
   - ../SnippetPermission/docker-compose.yml
+  - ../SnippetPrintScript/docker-compose.yml

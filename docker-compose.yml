@@ -16,6 +16,9 @@ services:
       DB_USER: ${SNIPPETS_DB_USER:?Falta SNIPPETS_DB_USER, copiá .env.example a .env}
       DB_PASSWORD: ${SNIPPETS_DB_PASSWORD:?Falta SNIPPETS_DB_PASSWORD, copiá .env.example a .env}
       ASSET_SERVICE_URL: http://asset-service:8080
+      # Solo existen si se levanta el sistema completo (docker-compose.sistema.yml).
+      PERMISSION_SERVICE_URL: http://permission-service:8080
+      PRINTSCRIPT_SERVICE_URL: http://printscript-service:8080
     depends_on:
       snippets-db:
         condition: service_healthy
