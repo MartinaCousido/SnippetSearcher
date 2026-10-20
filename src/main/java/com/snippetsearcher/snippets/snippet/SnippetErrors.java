@@ -27,6 +27,16 @@ public class SnippetErrors {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
 	}
 
+	@ExceptionHandler(SnippetNotFoundException.class)
+	public ProblemDetail notFound(SnippetNotFoundException e) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
+	}
+
+	@ExceptionHandler(SnippetAccessDeniedException.class)
+	public ProblemDetail accessDenied(SnippetAccessDeniedException e) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, e.getMessage());
+	}
+
 	// Falló otro servicio (PrintScript, Asset Service o Permission Service).
 	@ExceptionHandler(RestClientException.class)
 	public ProblemDetail serviceFailed() {

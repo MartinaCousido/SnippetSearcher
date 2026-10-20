@@ -59,4 +59,13 @@ class PermissionServiceClientTests {
 
 		assertThat(client.accessibleSnippets("owner")).containsExactly(SNIPPET_ID);
 	}
+
+	@Test
+	void readsWhatTheUserCanDoWithASnippet() {
+		server.expect(requestTo("http://permission-service/permissions/" + SNIPPET_ID))
+				.andExpect(method(HttpMethod.GET))
+				.andRespond(withSuccess("{\"canRead\": true, \"canWrite\": false}", MediaType.APPLICATION_JSON));
+
+		assertThat(client.access(SNIPPET_ID)).isEqualTo(new Access(true, false));
+	}
 }
