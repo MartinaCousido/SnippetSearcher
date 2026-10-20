@@ -25,7 +25,7 @@ A lo largo del cuatrimestre se irán sumando requerimientos no funcionales.
 - [ ] Arquitectura de la plataforma: UI web, N servicios, bases de datos, etc.
 - [ ] User stories que reflejen las funcionalidades.
 - [x] Diagrama de componentes de la arquitectura ([ver](#arquitectura)).
-- [ ] Diagramas de secuencia de los workflows más importantes.
+- [x] Diagramas de secuencia de los workflows más importantes ([ver](#diagramas-de-secuencia)).
 
 ## User stories
 
@@ -206,6 +206,28 @@ Las conexiones `memory` indican que, a nivel lógico, los módulos se llaman com
 ### Vista de despliegue
 ![Vista de despliegue](docs/diagramas/componentes-despliegue.png)
 Cada módulo se despliega como un servicio independiente con API HTTP. Snippets y Permisos tienen **cada uno su propio Postgres**. El **código de los snippets no va a Postgres**: se guarda en un bucket, detrás de la interfaz `Snippet Storage`. Solo Snippets lo lee y lo escribe: a los servicios de lenguaje les manda el código en cada pedido.
+
+### Diagramas de secuencia
+
+Los flujos más importantes, en PlantUML dentro de [`docs/diagramas/flujos/`](docs/diagramas/flujos). Usan los endpoints reales del [Contrato con la UI](#contrato-con-la-ui) y de [Decisiones técnicas](#decisiones-técnicas). Lo que todavía no está decidido se marca **A definir** o **Pendiente** en el diagrama.
+
+| Flujo | User stories | Estado | Qué muestra |
+|---|---|---|---|
+| [Crear snippet](docs/diagramas/flujos/secuencia-crear-snippet.puml) | US-1, US-3 | ✅ Implementado (falta el lint, #23) | Validación con regla, línea y columna; el código va al Asset Service; los metadatos y el owner se guardan en una transacción, y si falla se borra el archivo |
+| [Listar y ver](docs/diagramas/flujos/secuencia-listar-y-ver-snippet.puml) | US-5, US-6 | ✅ Implementado | Permisos dice qué snippets ve el usuario; 404 si no existe y 403 sin acceso |
+| [Actualizar snippet](docs/diagramas/flujos/secuencia-actualizar-snippet.puml) | US-2, US-4, US-16 | ⏳ Falta (#16, #21) | Solo el owner edita; misma validación que crear; los tests corren después y no revierten el cambio |
+| [Compartir snippet](docs/diagramas/flujos/secuencia-compartir-snippet.puml) | US-7 | ⏳ Falta (SnippetPermission#14) | Búsqueda de usuarios a medida que se escribe; solo el owner comparte; el invitado solo lee |
+| [Linting automático](docs/diagramas/flujos/secuencia-linting-automatico.puml) | US-14, US-15 | ⏳ Falta (#18, #23) | Snippet Service se manda trabajo a sí mismo por Redis Streams; confirma el mensaje recién después de guardar y reintenta si falla. El formateo automático (US-12) sigue el mismo flujo |
+
+![Crear snippet](docs/diagramas/flujos/secuencia-crear-snippet.png)
+
+![Listar y ver un snippet](docs/diagramas/flujos/secuencia-listar-y-ver-snippet.png)
+
+![Actualizar snippet](docs/diagramas/flujos/secuencia-actualizar-snippet.png)
+
+![Compartir snippet](docs/diagramas/flujos/secuencia-compartir-snippet.png)
+
+![Linting automático](docs/diagramas/flujos/secuencia-linting-automatico.png)
 
 ## Roles
 Los roles de las user stories describen **puntos de vista**, no permisos distintos en el sistema. Hoy cualquier usuario autenticado puede hacer todo sobre sus propios snippets. La única distinción real que el sistema aplica es **owner vs. usuario con quien se compartió el snippet**.
@@ -485,6 +507,7 @@ En cada PR hacia `dev` o `main`, el CI (`.github/workflows/ci.yml`) corre `./gra
 ├── CLAUDE.md                          # Reglas para Claude Code en este repo
 ├── docs/
 │   ├── diagramas/                     # Diagramas de componentes (PlantUML + PNG) y fotos del pizarrón
+│   │   └── flujos/                    # Diagramas de secuencia de los flujos principales
 │   └── *.pdf                          # Consigna y user stories de la cátedra
 ├── src/                               # Código de Snippet Service (Java + Spring Boot)
 ├── build.gradle, settings.gradle      # Build con Gradle
@@ -504,7 +527,7 @@ Los `.puml` son la fuente; los `.png` se generan a partir de ellos. Después de 
 
 ```bash
 # con PlantUML instalado (brew install plantuml)
-plantuml -tpng docs/diagramas/*.puml
+plantuml -tpng docs/diagramas/*.puml docs/diagramas/flujos/*.puml
 ```
 
 También se pueden previsualizar con la extensión de PlantUML de IntelliJ o VS Code.
