@@ -1,0 +1,47 @@
+@startuml secuencia-crear-snippet
+' Crear un snippet desde un archivo o desde el editor (US-1, US-3).
+' Implementado en #34. El lint en segundo plano (pasos finales) es #23.
+
+title Crear snippet (US-1, US-3)
+autonumber
+skinparam sequenceMessageAlign center
+
+actor Usuario
+participant UI
+participant "Snippet Service" as S
+participant "PrintScript Service" as PS
+participant "Asset Service\n(Snippet Storage)" as ST
+database "Postgres\n(snippets)" as DB
+participant "Permission Service" as P
+queue "Redis Streams" as Q
+
+Usuario -> UI : nombre, lenguaje y código\n(archivo o editor)
+UI -> S : POST /snippets\n{ name, description, language, version, content }
+note over S
+  Quién pide: hoy el usuario fijo dev-user.
+  Con Auth0, sale del JWT.
+end note
+
+S -> PS : POST /validate { code, version }
+alt código inválido
+  PS --> S : 200 { diagnostics: [regla, línea, columna] }
+  S --> UI : 400 { diagnostics }
+  UI --> Usuario : muestra la regla, la línea y la columna
+else código válido
+  PS --> S : 200 { diagnostics: [] }
+  S -> ST : PUT /v1/asset/snippets/{id} (código)
+  group transacción
+    S -> DB : guardar metadatos (compliance = pending, author)
+    S -> P : POST /permissions/{id}/owner
+    P --> S : 201
+  end
+  alt falla la base o Permisos
+    S -> ST : DELETE /v1/asset/snippets/{id}
+    S --> UI : error (no queda un snippet a medias)
+  else todo bien
+    S --> UI : 200 Snippet
+    UI --> Usuario : muestra el snippet
+    S -> Q : publicar pedido de lint (falta: #23)
+  end
+end
+@enduml

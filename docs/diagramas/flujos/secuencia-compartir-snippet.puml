@@ -1,0 +1,46 @@
+@startuml secuencia-compartir-snippet
+' Compartir un snippet con otro usuario (US-7).
+' Falta implementarlo: SnippetPermission#14.
+
+title Compartir snippet (US-7)
+autonumber
+skinparam sequenceMessageAlign center
+
+actor Owner
+participant UI
+participant "Módulo User" as U
+participant "Permission Service" as P
+database "Postgres\n(permisos)" as PDB
+participant "Snippet Service" as S
+
+Owner -> UI : abre "compartir" en su snippet
+loop a medida que escribe
+  Owner -> UI : escribe parte del nombre
+  UI -> U : buscar usuarios(texto)
+  U --> UI : usuarios que coinciden
+end
+note right of U
+  Pendiente: en qué servicio vive
+  el módulo User. Hoy la UI usa
+  datos falsos (getUserFriends).
+end note
+
+Owner -> UI : elige al usuario
+UI -> P : POST /permissions/{id}/share { userId }
+P -> PDB : ¿quien pide es el owner?
+alt no es el owner
+  P --> UI : 403
+  UI --> Owner : no puede compartir
+else es el owner
+  P -> PDB : guardar permiso LECTURA (id, userId)
+  P --> UI : 201
+  UI -> S : GET /snippets/{id}
+  S --> UI : Snippet
+  UI --> Owner : snippet compartido
+end
+
+note over P, PDB
+  El usuario invitado solo puede leer
+  el snippet y sus tests.
+end note
+@enduml
