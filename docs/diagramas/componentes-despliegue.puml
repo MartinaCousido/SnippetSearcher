@@ -3,6 +3,7 @@
 ' que expone una API HTTP, con su propia base de datos cuando la necesita.
 ' El código de los snippets se guarda en un bucket, no en Postgres.
 ' Solo Snippets usa el Snippet Storage: a los lenguajes les manda el código.
+' Todo entra por el proxy (nginx), con HTTPS. Adentro de la red, HTTP.
 
 title Snippet Searcher - Vista de despliegue
 skinparam componentStyle uml2
@@ -10,9 +11,14 @@ skinparam componentStyle uml2
 actor Usuario
 
 cloud "Auth0" as Auth0
+cloud "Let's Encrypt" as LE
 
-node "UI (React)" as UINode {
-  component UI
+node "proxy (nginx)" <<80 / 443>> as ProxyNode {
+  component "Reverse proxy" as Proxy
+}
+
+node "ui" as UINode {
+  component "UI (React)" as UI
 }
 
 node "Permission Service" <<HTTP>> {
@@ -42,10 +48,12 @@ storage "Azurite\n(bucket)" as Bucket
 
 queue "Redis Streams" as Redis
 
-Usuario --> UI
+Usuario --> Proxy : HTTPS
+Proxy --> UI : HTTP\n/
+Proxy --> Snippets : HTTP\n/api/
+Proxy --> Permisos : HTTP\n/api/permissions/
+Proxy ..> LE : certificado
 UI --> Auth0 : login (OAuth)
-UI --> Snippets : HTTP
-UI --> Permisos : HTTP
 
 Snippets --> Permisos : HTTP
 Snippets --> PrintScript : HTTP
