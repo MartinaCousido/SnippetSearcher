@@ -205,6 +205,8 @@ Las conexiones `memory` indican que, a nivel lógico, los módulos se llaman com
 
 ### Vista de despliegue
 ![Vista de despliegue](docs/diagramas/componentes-despliegue.png)
+Todo entra por el **proxy** (nginx), con HTTPS: le pasa `/` a la UI, `/api/permissions/` a Permisos y el resto de `/api/` a Snippets. Es el único servicio con puertos públicos. Ver [Contrato con la UI](#contrato-con-la-ui).
+
 Cada módulo se despliega como un servicio independiente con API HTTP. Snippets y Permisos tienen **cada uno su propio Postgres**. El **código de los snippets no va a Postgres**: se guarda en un bucket, detrás de la interfaz `Snippet Storage`. Solo Snippets lo lee y lo escribe: a los servicios de lenguaje les manda el código en cada pedido.
 
 ### Diagramas de secuencia
@@ -246,7 +248,7 @@ Todos los roles son usuarios autenticados con Auth0: no existen usuarios anónim
 
 | Módulo | Responsabilidad | Guarda datos en |
 |---|---|---|
-| **UI** | Interfaz web (React) provista por la cátedra: pantallas, editor embebido, login. Solo hay que configurarla para que apunte a nuestros servicios. Vive en [SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui) | — |
+| **UI** | Interfaz web (React) provista por la cátedra: pantallas, editor embebido, login. Solo hay que configurarla para que apunte a nuestros servicios. Vive en [SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui). En la VM la sirve el contenedor `ui`, detrás del proxy | — |
 | **Auth0** (externo) | Login, emisión de tokens JWT y registro de usuarios | Auth0 |
 | **User** | Expone los usuarios del sistema. Por ejemplo, la búsqueda de usuarios que filtra a medida que se escribe al compartir un snippet (#7). Se apoya en Auth0, no mantiene una tabla de usuarios propia | Auth0 |
 | **Snippets** | Módulo central. Guarda los metadatos del snippet (nombre, descripción, lenguaje, versión, estado de lint), los tests y la configuración de reglas. Orquesta la validación, el lint, el formateo y la ejecución delegándolas en el lenguaje correspondiente | Postgres (snippets) + Snippet Storage |
@@ -308,12 +310,33 @@ La UI tiene una sola variable, `BACKEND_URL`, y los tests de Cypress de la cáte
 | `/api/permissions…` | Permission Service |
 
 - El proxy **saca el `/api`**: los servicios exponen `/snippets`, `/permissions`, etc., sin prefijo. Así su código no depende de cómo se publiquen.
-- Como la UI y los servicios quedan en la misma dirección, no hace falta configurar CORS (el navegador bloquea por defecto que una página llame a otra dirección).
+- Todo lo que no empieza con `/api` va a la UI.
 
 | Dónde | Proxy | `BACKEND_URL` |
 |---|---|---|
 | Local | El proxy del servidor de desarrollo de Vite (`vite.config.ts` de la UI) | `http://localhost:5173/api` |
-| VM | nginx en `docker-stack.yml`, en el puerto 80. También sirve la UI | `http://<vm>/api` |
+| VM de dev | `proxy` (nginx) en `docker-stack.yml`, en los puertos 80 y 443. Le pasa `/` al contenedor `ui` | `https://snippetsearcher-dev.duckdns.org/api` |
+| VM de prod | Igual que dev | `https://snippetsearcher-prod.duckdns.org/api` |
+
+En la VM, `BACKEND_URL` es `/api`, relativa a la página. Así la misma imagen de la UI sirve para dev y prod.
+
+### HTTPS
+
+- Los usuarios entran por **HTTPS**, con un certificado de **Let's Encrypt** (una autoridad que da certificados gratis) para el dominio de **DuckDNS** (un servicio gratis que le da un nombre a la IP de la VM).
+- El cifrado termina en el `proxy`. Adentro de la red de Docker, el proxy les habla a los servicios con HTTP.
+- `http://…` redirige a `https://…`.
+
+### CORS
+
+CORS es la regla del navegador que decide si una página puede llamar a una API que está en otra dirección (otro *origin*). Con el proxy, la UI y la API están en el mismo origin, así que el navegador no la aplica. Igual se configura, por si la UI se sirve desde otra dirección:
+
+- Snippet Service y Permission Service aceptan solo los origins de la variable **`CORS_ALLOWED_ORIGINS`** (lista separada por comas). Nunca `*`.
+- Métodos: `GET`, `POST`, `PUT`, `DELETE` y `OPTIONS`. Headers: `Authorization` y `Content-Type`.
+
+| Ambiente | `CORS_ALLOWED_ORIGINS` |
+|---|---|
+| dev | `https://snippetsearcher-dev.duckdns.org,http://localhost:5173` |
+| prod | `https://snippetsearcher-prod.duckdns.org` |
 
 ### Endpoints
 
@@ -374,7 +397,11 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Publicación de la imagen | ✅ Definido | En cada push a `dev` o `main`, GitHub Actions (`.github/workflows/cd.yml`) arma la imagen y la publica en GHCR como `ghcr.io/martinacousido/snippet-service`, con el tag del ambiente (`dev` o `prod`) y el del commit (`sha-…`). La imagen es pública. Ver [Tags de las imágenes](https://github.com/MartinaCousido/SnippetSearcher-infra#tags-de-las-imágenes) en el repo de infra |
 | Deploy del servicio | ✅ Definido | Después de publicar la imagen, el mismo workflow entra por SSH a la VM del ambiente (`dev` → VM de dev, `main` → VM de prod) y corre `docker service update` con el tag `sha-…` del commit. Actualiza **solo** `snippet-service`: los demás servicios del stack no se reinician. Usa los secrets `VM_HOST`, `VM_USER` y `VM_SSH_KEY` de los *Environments* `dev` y `prod` de este repo. La VM tiene que estar prendida |
 | Librería de PrintScript | ✅ Definido | **[MartinaCousido/PrintScript](https://github.com/MartinaCousido/PrintScript) `0.3.0`**: copia propia e independiente de la librería del TP anterior (`ingsis-ua/ingsis-interpreter`), con Java 25. Se publica en GitHub Packages como `org.printscript:<módulo>:0.3.0` (por ejemplo `org.printscript:runner`), desde `https://maven.pkg.github.com/MartinaCousido/PrintScript`. Bajarla pide un token con `read:packages`, también en el CI y en el build de Docker del servicio que la use |
-| Repo de la UI | ✅ Definido | [SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui): un *fork* (copia vinculada) de la UI de la cátedra, [austral-ingsis/printscript-ui](https://github.com/austral-ingsis/printscript-ui). Con *Sync fork* se traen los cambios de la cátedra. No usa `dev` ni `main`: las ramas salen de `master` y los PRs van hacia `master` |
+| Repo de la UI | ✅ Definido | [SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui): un *fork* (copia vinculada) de la UI de la cátedra, [austral-ingsis/printscript-ui](https://github.com/austral-ingsis/printscript-ui). Con *Sync fork* se traen los cambios de la cátedra. No usa `dev`: `master` hace de `dev` y despliega en la VM de dev, y `main` despliega en la VM de prod (clase del 2026-10-20). Las ramas salen de `master`, los PRs van hacia `master`, y lo probado pasa a `main` con un PR `master` → `main`. Ver [Flujo de trabajo](#flujo-de-trabajo) |
+| Imagen de la UI | ✅ Definido | Contenedor **`ui`** aparte en el stack, con la imagen `ghcr.io/martinacousido/snippet-ui` (tags `dev`/`prod` y `sha-…`, como los servicios). Sirve los archivos de la UI ya compilados. No tiene puertos: el `proxy` le pasa `/`. La publica el repo de la UI ([SnippetSearcher-ui#10](https://github.com/MartinaCousido/SnippetSearcher-ui/issues/10)) |
+| Reverse proxy | ✅ Definido | Servicio **`proxy`** (nginx) en el stack, en los puertos **80 y 443**. Es el único con puertos públicos: Snippet Service deja de publicar el 80. Rutas en [Contrato con la UI](#contrato-con-la-ui). Detalle en [Reverse proxy](https://github.com/MartinaCousido/SnippetSearcher-infra#reverse-proxy) del repo de infra |
+| HTTPS | ✅ Definido | **Let's Encrypt + DuckDNS** (clase del 2026-10-20). Dominios: `snippetsearcher-dev.duckdns.org` (dev) y `snippetsearcher-prod.duckdns.org` (prod). El cifrado termina en el `proxy`; adentro de la red de Docker se sigue con HTTP. `http://` redirige a `https://`. Se implementa en [SnippetSearcher-infra#24](https://github.com/MartinaCousido/SnippetSearcher-infra/issues/24). Ver [HTTPS](#https) |
+| CORS | ✅ Definido | Snippet Service y Permission Service aceptan solo los origins de **`CORS_ALLOWED_ORIGINS`**, con los métodos `GET`, `POST`, `PUT`, `DELETE` y `OPTIONS` y los headers `Authorization` y `Content-Type`. Nunca `*`. Dev: el dominio de dev y `http://localhost:5173`. Prod: solo el dominio de prod. Reemplaza a "no hace falta configurar CORS". Ver [CORS](#cors) |
 | Contrato con Permission Service | ✅ Definido | Cuatro endpoints. **Registrar owner:** `POST /permissions/{snippetId}/owner` → 201. Si ya es el owner, no hace nada y responde 201 igual (así Snippet Service puede reintentar); **409** si el snippet ya tiene otro owner, o si el usuario ya tiene otro permiso sobre el snippet. **Compartir:** `POST /permissions/{snippetId}/share` con `{ "userId": "auth0\|juan" }` → 201, o 403 si quien comparte no es el owner. **¿Puede leer o escribir?:** `GET /permissions/{snippetId}` → `{ "canRead": true, "canWrite": false }`. **Snippets accesibles:** `GET /permissions/snippets?relation=owner\|shared\|all` → lista de ids. El `userId` de quien pide sale siempre del JWT: Snippet Service le **reenvía el token del usuario**, nunca le manda el `userId`. Detalle en el [README de SnippetPermission](https://github.com/MartinaCousido/SnippetPermission#operaciones) |
 | Contrato con la UI de la cátedra | ✅ Definido | Endpoints y formatos que salen de `src/utils/snippetOperations.ts`, más el reverse proxy que deja a la UI con una sola `BACKEND_URL`. Ver [Contrato con la UI](#contrato-con-la-ui) |
 | Snippet Storage (bucket) | ✅ Definido | Lo provee la cátedra (clase del 2026-10-13): el **[Asset Service](https://github.com/austral-ingsis/asset-service)** (imagen `ghcr.io/austral-ingsis/snippet-asset-service`), sobre un bucket emulado con **Azurite**. Expone `GET`, `PUT` y `DELETE` en `/v1/asset/{container}/{key}`. En Postgres va solo la referencia al archivo. La imagen es pública: se baja sin login. Se suma al stack en [SnippetSearcher-infra#14](https://github.com/MartinaCousido/SnippetSearcher-infra/issues/14) |
@@ -399,7 +426,7 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 
 ## Flujo de trabajo
 
-Aplica igual a los tres repos: SnippetSearcher, SnippetPermission y SnippetSearcher-infra. El repo de la UI ([SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui)) no tiene `dev` ni `main`: cada tarea va en su propia rama, creada desde `master`, y entra con un PR hacia `master`.
+Aplica igual a los tres repos: SnippetSearcher, SnippetPermission y SnippetSearcher-infra. El repo de la UI ([SnippetSearcher-ui](https://github.com/MartinaCousido/SnippetSearcher-ui)) usa `master` en lugar de `dev`: cada tarea va en su propia rama, creada desde `master`, y entra con un PR hacia `master`. `master` despliega en la VM de dev, y lo probado pasa a `main` con un PR `master` → `main`, que despliega en la VM de prod.
 
 ```
 feature/us-<n>-<descripcion>  ──PR──▶  dev  ──PR──▶  main
@@ -418,8 +445,8 @@ feature/us-<n>-<descripcion>  ──PR──▶  dev  ──PR──▶  main
 
 | PR | Tipo de merge | Por qué |
 |---|---|---|
-| rama de tarea → `dev` | **Squash** | Junta los commits del PR en uno solo y deja `dev` prolijo |
-| `dev` → `main` | **Merge commit** | Mantiene la misma historia en las dos ramas. Con squash, `main` tendría un commit que `dev` no tiene, y el siguiente PR `dev` → `main` mostraría cambios viejos o conflictos falsos |
+| rama de tarea → `dev` (en la UI, → `master`) | **Squash** | Junta los commits del PR en uno solo y deja `dev` prolijo |
+| `dev` → `main` (en la UI, `master` → `main`) | **Merge commit** | Mantiene la misma historia en las dos ramas. Con squash, `main` tendría un commit que `dev` no tiene, y el siguiente PR `dev` → `main` mostraría cambios viejos o conflictos falsos |
 
 ### Protección de `dev` y `main`
 
