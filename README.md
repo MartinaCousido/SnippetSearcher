@@ -445,8 +445,8 @@ feature/us-<n>-<descripcion>  ──PR──▶  dev  ──PR──▶  main
 
 | PR | Tipo de merge | Por qué |
 |---|---|---|
-| rama de tarea → `dev` | **Squash** | Junta los commits del PR en uno solo y deja `dev` prolijo |
-| `dev` → `main` | **Merge commit** | Mantiene la misma historia en las dos ramas. Con squash, `main` tendría un commit que `dev` no tiene, y el siguiente PR `dev` → `main` mostraría cambios viejos o conflictos falsos |
+| rama de tarea → `dev` (en la UI, → `master`) | **Squash** | Junta los commits del PR en uno solo y deja `dev` prolijo |
+| `dev` → `main` (en la UI, `master` → `main`) | **Merge commit** | Mantiene la misma historia en las dos ramas. Con squash, `main` tendría un commit que `dev` no tiene, y el siguiente PR `dev` → `main` mostraría cambios viejos o conflictos falsos |
 
 ### Protección de `dev` y `main`
 
