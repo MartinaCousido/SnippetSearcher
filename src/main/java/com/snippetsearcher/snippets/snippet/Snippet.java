@@ -54,6 +54,16 @@ public class Snippet {
 		this.author = author;
 	}
 
+	// Cambia los metadatos al actualizar el snippet (US-2, US-4). El código
+	// cambió, así que el estado de lint vuelve a PENDING.
+	public void update(String name, String description, String language, String version) {
+		this.name = name;
+		this.description = description;
+		this.language = language;
+		this.version = version;
+		this.compliance = Compliance.PENDING;
+	}
+
 	public UUID id() {
 		return id;
 	}

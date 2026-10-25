@@ -87,6 +87,41 @@ public class SnippetService {
 		return toResponse(snippet);
 	}
 
+	// Actualiza un snippet (US-2, US-4). Solo el owner. Se valida igual que al
+	// crear, con el lenguaje y la versión nuevos si cambian: si el código no es
+	// válido, no se cambia nada. El archivo se pisa con la misma clave.
+	public SnippetResponse update(UUID id, UpdateSnippetRequest request) {
+		var snippet = repository.findById(id).orElseThrow(() -> new SnippetNotFoundException(id));
+		var access = permissions.access(id);
+		if (access == null || !access.canWrite()) {
+			throw new SnippetAccessDeniedException(id);
+		}
+
+		var languageName = request.language() == null ? snippet.language() : request.language();
+		// Si cambia el lenguaje y no viene la versión, se usa la versión por
+		// defecto del lenguaje nuevo: la anterior puede no existir en él.
+		var version = request.version() != null ? request.version()
+				: languageName.equals(snippet.language()) ? snippet.version() : null;
+		var language = languages.resolve(languageName, version);
+		var diagnostics = language.language().validate(request.content(), language.version());
+		if (!diagnostics.isEmpty()) {
+			throw new InvalidSnippetException(diagnostics);
+		}
+
+		// El archivo se guarda dentro de la transacción: si falla, los metadatos
+		// no cambian.
+		var updated = transaction.execute(status -> {
+			snippet.update(request.name() == null ? snippet.name() : request.name(),
+					request.description() == null ? snippet.description() : request.description(),
+					language.name(), language.version());
+			var saved = repository.saveAndFlush(snippet);
+			storage.put(snippet.contentKey(), request.content());
+			return saved;
+		});
+		return new SnippetResponse(id.toString(), updated.name(), updated.description(), updated.language(),
+				updated.version(), language.extension(), request.content(), updated.compliance(), updated.author());
+	}
+
 	// El listado lleva el código de cada snippet, porque el Snippet de la UI lo
 	// tiene: se lee del Snippet Storage.
 	private SnippetResponse toResponse(Snippet snippet) {
