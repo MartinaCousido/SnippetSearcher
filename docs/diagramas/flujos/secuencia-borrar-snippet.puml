@@ -1,0 +1,43 @@
+@startuml secuencia-borrar-snippet
+' Borrar un snippet (#46). Los endpoints son los del README.
+
+title Borrar snippet
+autonumber
+skinparam sequenceMessageAlign center
+
+actor Owner
+participant UI
+participant "Snippet Service" as S
+participant "Permission Service" as P
+participant "Asset Service\n(Snippet Storage)" as ST
+database "Postgres\n(snippets)" as DB
+
+Owner -> UI : borra el snippet y confirma
+UI -> S : DELETE /snippets/{id}
+S -> DB : buscar el snippet
+alt no existe
+  S --> UI : 404
+else existe
+  S -> P : GET /permissions/{id}
+  P --> S : { canRead, canWrite }
+  alt canWrite = false (no es el owner)
+    S --> UI : 403
+    UI --> Owner : muestra el error
+  else es el owner
+    group transacción
+      S -> DB : borrar la fila
+      S -> ST : DELETE /v1/asset/snippets/{id}
+      note right: si falla, la fila no se\nborra y responde 502
+    end
+    S -> P : DELETE /permissions/{id}
+    note right of P
+      Si falla, el snippet queda
+      borrado igual: los permisos
+      sueltos no dan acceso a nada.
+      Se deja un aviso en el log.
+    end note
+    S --> UI : 204
+    UI --> Owner : vuelve al listado
+  end
+end
+@enduml

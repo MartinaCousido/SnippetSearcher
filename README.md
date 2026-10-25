@@ -205,7 +205,7 @@ Las conexiones `memory` indican que, a nivel lógico, los módulos se llaman com
 
 ### Vista de despliegue
 ![Vista de despliegue](docs/diagramas/componentes-despliegue.png)
-Todo entra por el **proxy** (nginx), con HTTPS: le pasa `/` a la UI, el pedido de compartir (`POST /api/permissions/{id}/share`) a Permisos y el resto de `/api/` a Snippets. Es el único servicio con puertos públicos. Ver [Contrato con la UI](#contrato-con-la-ui).
+Todo entra por el **proxy** (nginx), con HTTPS: le pasa `/` a la UI, el pedido de compartir (`POST /api/permissions/{id}/share`) a Permisos y el resto de `/api/` a Snippets. Es el único servicio con puertos públicos. El servicio `certbot` le consigue y le renueva el certificado de Let's Encrypt. Ver [Contrato con la UI](#contrato-con-la-ui).
 
 Cada módulo se despliega como un servicio independiente con API HTTP. Snippets y Permisos tienen **cada uno su propio Postgres**. El **código de los snippets no va a Postgres**: se guarda en un bucket, detrás de la interfaz `Snippet Storage`. Solo Snippets lo lee y lo escribe: a los servicios de lenguaje les manda el código en cada pedido.
 
@@ -218,7 +218,8 @@ Los flujos más importantes, en PlantUML dentro de [`docs/diagramas/flujos/`](do
 | [Crear snippet](docs/diagramas/flujos/secuencia-crear-snippet.puml) | US-1, US-3 | ✅ Implementado (falta el lint, #23) | Validación con regla, línea y columna; el código va al Asset Service; los metadatos y el owner se guardan en una transacción, y si falla se borra el archivo |
 | [Listar y ver](docs/diagramas/flujos/secuencia-listar-y-ver-snippet.puml) | US-5, US-6 | ✅ Implementado | Permisos dice qué snippets ve el usuario; 404 si no existe y 403 sin acceso |
 | [Actualizar snippet](docs/diagramas/flujos/secuencia-actualizar-snippet.puml) | US-2, US-4, US-16 | ✅ Implementado (faltan el lint, #23, y los tests automáticos, #21) | Solo el owner edita; misma validación que crear; si falla guardar el código, los metadatos no cambian; los tests corren después y no revierten el cambio |
-| [Compartir snippet](docs/diagramas/flujos/secuencia-compartir-snippet.puml) | US-7 | ⏳ Falta (SnippetPermission#14) | Búsqueda de usuarios a medida que se escribe; solo el owner comparte; el invitado solo lee |
+| [Compartir snippet](docs/diagramas/flujos/secuencia-compartir-snippet.puml) | US-7 | ✅ Implementado (falta la búsqueda de usuarios, módulo User) | Solo el owner comparte; el invitado solo lee; 400 si se lo comparte a sí mismo; compartir dos veces no duplica el permiso |
+| [Borrar snippet](docs/diagramas/flujos/secuencia-borrar-snippet.puml) | — | ✅ Implementado | Solo el owner borra; la fila y el archivo en una transacción; después los permisos, y si eso falla el snippet queda borrado igual |
 | [Linting automático](docs/diagramas/flujos/secuencia-linting-automatico.puml) | US-14, US-15 | ⏳ Falta (#18, #23) | Snippet Service se manda trabajo a sí mismo por Redis Streams; confirma el mensaje recién después de guardar y reintenta si falla. El formateo automático (US-12) sigue el mismo flujo |
 
 ![Crear snippet](docs/diagramas/flujos/secuencia-crear-snippet.png)
@@ -228,6 +229,8 @@ Los flujos más importantes, en PlantUML dentro de [`docs/diagramas/flujos/`](do
 ![Actualizar snippet](docs/diagramas/flujos/secuencia-actualizar-snippet.png)
 
 ![Compartir snippet](docs/diagramas/flujos/secuencia-compartir-snippet.png)
+
+![Borrar snippet](docs/diagramas/flujos/secuencia-borrar-snippet.png)
 
 ![Linting automático](docs/diagramas/flujos/secuencia-linting-automatico.png)
 

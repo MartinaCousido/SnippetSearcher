@@ -1,6 +1,7 @@
 @startuml secuencia-compartir-snippet
 ' Compartir un snippet con otro usuario (US-7).
-' Falta implementarlo: SnippetPermission#14.
+' Implementado en SnippetPermission#14. Falta el módulo User (búsqueda de
+' usuarios), que sigue pendiente.
 
 title Compartir snippet (US-7)
 autonumber
@@ -26,13 +27,19 @@ note right of U
 end note
 
 Owner -> UI : elige al usuario
-UI -> P : POST /permissions/{id}/share { userId }
+UI -> P : POST /permissions/{id}/share { userId }\n(por el proxy: es lo único de Permisos que se publica)
 P -> PDB : ¿quien pide es el owner?
 alt no es el owner
   P --> UI : 403
-  UI --> Owner : no puede compartir
+  UI --> Owner : muestra el error
+else se lo comparte a sí mismo, o falta el userId
+  P --> UI : 400
+  UI --> Owner : muestra el error
 else es el owner
-  P -> PDB : guardar permiso LECTURA (id, userId)
+  opt el invitado todavía no tiene permiso
+    P -> PDB : guardar permiso LECTURA (id, userId)
+  end
+  note right: compartir dos veces\nno duplica el permiso
   P --> UI : 201
   UI -> S : GET /snippets/{id}
   S --> UI : Snippet

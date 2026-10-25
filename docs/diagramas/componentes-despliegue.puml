@@ -17,6 +17,10 @@ node "proxy (nginx)" <<80 / 443>> as ProxyNode {
   component "Reverse proxy" as Proxy
 }
 
+node "certbot" as CertbotNode {
+  component "Certbot" as Certbot
+}
+
 node "ui" as UINode {
   component "UI (React)" as UI
 }
@@ -52,7 +56,8 @@ Usuario --> Proxy : HTTPS
 Proxy --> UI : HTTP\n/
 Proxy --> Snippets : HTTP\n/api/
 Proxy --> Permisos : HTTP\nPOST /api/permissions/{id}/share
-Proxy ..> LE : certificado
+Certbot ..> LE : pide y renueva\nel certificado
+Certbot ..> Proxy : certificado\n(volumen compartido)
 UI --> Auth0 : login (OAuth)
 
 Snippets --> Permisos : HTTP
