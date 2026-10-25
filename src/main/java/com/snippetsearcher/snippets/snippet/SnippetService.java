@@ -3,6 +3,8 @@ package com.snippetsearcher.snippets.snippet;
 import java.util.List;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,8 @@ import com.snippetsearcher.snippets.security.CurrentUser;
 
 @Service
 public class SnippetService {
+
+	private static final Logger log = LoggerFactory.getLogger(SnippetService.class);
 
 	private final LanguageCatalog languages;
 	private final SnippetStorage storage;
@@ -120,6 +124,29 @@ public class SnippetService {
 		});
 		return new SnippetResponse(id.toString(), updated.name(), updated.description(), updated.language(),
 				updated.version(), language.extension(), request.content(), updated.compliance(), updated.author());
+	}
+
+	// Borra un snippet. Solo el owner. La fila y el archivo se borran en una
+	// transacción: si falla el Asset Service, el snippet queda como estaba.
+	// Después se borran sus permisos. Si eso falla, el snippet queda borrado
+	// igual: los permisos sueltos no dan acceso a nada, porque el snippet ya no
+	// existe.
+	public void delete(UUID id) {
+		var snippet = repository.findById(id).orElseThrow(() -> new SnippetNotFoundException(id));
+		var access = permissions.access(id);
+		if (access == null || !access.canWrite()) {
+			throw new SnippetAccessDeniedException(id);
+		}
+		transaction.executeWithoutResult(status -> {
+			repository.delete(snippet);
+			repository.flush();
+			storage.delete(snippet.contentKey());
+		});
+		try {
+			permissions.deleteAll(id);
+		} catch (RuntimeException e) {
+			log.warn("No se pudieron borrar los permisos del snippet {}, que ya se borró", id, e);
+		}
 	}
 
 	// El listado lleva el código de cada snippet, porque el Snippet de la UI lo

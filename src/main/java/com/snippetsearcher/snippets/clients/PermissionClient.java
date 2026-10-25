@@ -15,4 +15,7 @@ public interface PermissionClient {
 
 	// Si el usuario que pide puede leer o escribir el snippet.
 	Access access(UUID snippetId);
+
+	// Borra todos los permisos del snippet, cuando se borra el snippet.
+	void deleteAll(UUID snippetId);
 }
