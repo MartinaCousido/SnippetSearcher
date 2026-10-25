@@ -22,6 +22,11 @@ public class SnippetErrors {
 		return ResponseEntity.badRequest().body(new InvalidSnippetResponse(e.diagnostics()));
 	}
 
+	@ExceptionHandler(EmptySnippetException.class)
+	public ProblemDetail emptySnippet(EmptySnippetException e) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+	}
+
 	@ExceptionHandler(UnsupportedLanguageException.class)
 	public ProblemDetail unsupportedLanguage(UnsupportedLanguageException e) {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());

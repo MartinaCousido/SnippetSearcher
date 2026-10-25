@@ -120,6 +120,21 @@ class CreateSnippetTests {
 		assertNothingWasSaved();
 	}
 
+	// El Asset Service no acepta archivos vacíos: se rechaza antes, con 400.
+	@Test
+	void anEmptyCodeIsABadRequest() throws Exception {
+		for (var content : List.of("", "   \\n\\t")) {
+			create("""
+					{"name": "vacio", "language": "printscript", "content": "%s"}
+					""".formatted(content))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.detail").value("El código del snippet no puede estar vacío"));
+		}
+
+		verify(printScript, never()).validate(anyString(), anyString());
+		assertNothingWasSaved();
+	}
+
 	@Test
 	void anUnknownLanguageIsABadRequest() throws Exception {
 		create(body("cobol", "1.0"))
