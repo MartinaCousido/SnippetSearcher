@@ -1,6 +1,7 @@
 @startuml secuencia-actualizar-snippet
 ' Actualizar un snippet y correr sus tests (US-2, US-4, US-16).
-' Falta implementarlo: #16 y #21. Los endpoints son los del README.
+' La actualización está implementada (#16). Faltan el lint en segundo plano
+' (#23) y los tests automáticos (#21). Los endpoints son los del README.
 
 title Actualizar snippet y correr sus tests (US-2, US-4, US-16)
 autonumber
@@ -16,7 +17,7 @@ database "Postgres\n(snippets)" as DB
 queue "Redis Streams" as Q
 
 Usuario -> UI : edita el código
-UI -> S : PUT /snippets/{id} { content }
+UI -> S : PUT /snippets/{id}\n{ content, name?, description?, language?, version? }
 S -> DB : buscar el snippet
 alt no existe
   S --> UI : 404
@@ -26,20 +27,23 @@ else existe
   alt canWrite = false (no es el owner)
     S --> UI : 403
   else es el owner
-    S -> PS : POST /validate { code, version }
+    S -> PS : POST /validate { code, version }\n(la versión nueva, si cambia)
     alt código inválido
       PS --> S : diagnostics
       S --> UI : 400 { diagnostics }
       UI --> Usuario : muestra la regla, la línea y la columna
     else código válido
       PS --> S : diagnostics: []
-      S -> ST : PUT /v1/asset/snippets/{id} (código nuevo)
-      S -> DB : compliance = pending
+      group transacción
+        S -> DB : metadatos y compliance = pending
+        S -> ST : PUT /v1/asset/snippets/{id} (código nuevo)
+        note right: si falla, los metadatos\nno cambian (502)
+      end
       S --> UI : 200 Snippet
       UI --> Usuario : muestra el snippet
-      S -> Q : publicar pedido de lint
+      S -> Q : publicar pedido de lint (#23)
 
-      == Tests automáticos (US-16) ==
+      == Tests automáticos (US-16, #21) ==
       loop por cada test del snippet
         S -> PS : ejecutar(código, inputs)
         PS --> S : outputs

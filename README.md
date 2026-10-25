@@ -217,7 +217,7 @@ Los flujos más importantes, en PlantUML dentro de [`docs/diagramas/flujos/`](do
 |---|---|---|---|
 | [Crear snippet](docs/diagramas/flujos/secuencia-crear-snippet.puml) | US-1, US-3 | ✅ Implementado (falta el lint, #23) | Validación con regla, línea y columna; el código va al Asset Service; los metadatos y el owner se guardan en una transacción, y si falla se borra el archivo |
 | [Listar y ver](docs/diagramas/flujos/secuencia-listar-y-ver-snippet.puml) | US-5, US-6 | ✅ Implementado | Permisos dice qué snippets ve el usuario; 404 si no existe y 403 sin acceso |
-| [Actualizar snippet](docs/diagramas/flujos/secuencia-actualizar-snippet.puml) | US-2, US-4, US-16 | ⏳ Falta (#16, #21) | Solo el owner edita; misma validación que crear; los tests corren después y no revierten el cambio |
+| [Actualizar snippet](docs/diagramas/flujos/secuencia-actualizar-snippet.puml) | US-2, US-4, US-16 | ✅ Implementado (faltan el lint, #23, y los tests automáticos, #21) | Solo el owner edita; misma validación que crear; si falla guardar el código, los metadatos no cambian; los tests corren después y no revierten el cambio |
 | [Compartir snippet](docs/diagramas/flujos/secuencia-compartir-snippet.puml) | US-7 | ⏳ Falta (SnippetPermission#14) | Búsqueda de usuarios a medida que se escribe; solo el owner comparte; el invitado solo lee |
 | [Linting automático](docs/diagramas/flujos/secuencia-linting-automatico.puml) | US-14, US-15 | ⏳ Falta (#18, #23) | Snippet Service se manda trabajo a sí mismo por Redis Streams; confirma el mensaje recién después de guardar y reintenta si falla. El formateo automático (US-12) sigue el mismo flujo |
 
