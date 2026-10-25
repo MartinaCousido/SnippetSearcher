@@ -330,7 +330,7 @@ En la VM, `BACKEND_URL` es `/api`, relativa a la página. Así la misma imagen d
 
 CORS es la regla del navegador que decide si una página puede llamar a una API que está en otra dirección (otro *origin*). Con el proxy, la UI y la API están en el mismo origin, así que el navegador no la aplica. Igual se configura, por si la UI se sirve desde otra dirección:
 
-- Snippet Service y Permission Service aceptan solo los origins de la variable **`CORS_ALLOWED_ORIGINS`** (lista separada por comas). Nunca `*`.
+- Snippet Service y Permission Service aceptan solo los origins de la variable **`CORS_ALLOWED_ORIGINS`** (lista separada por comas). Nunca `*`: si la lista lo tiene, el servicio no arranca. Sin la variable, no se acepta ningún origin externo. En el `docker-compose.yml` local vale `http://localhost:5173`.
 - Métodos: `GET`, `POST`, `PUT`, `DELETE` y `OPTIONS`. Headers: `Authorization` y `Content-Type`.
 
 | Ambiente | `CORS_ALLOWED_ORIGINS` |
