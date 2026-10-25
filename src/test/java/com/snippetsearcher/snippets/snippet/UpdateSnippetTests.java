@@ -137,6 +137,18 @@ class UpdateSnippetTests {
 	}
 
 	@Test
+	void anEmptyCodeIsABadRequest() throws Exception {
+		for (var content : List.of("", "   \\n\\t")) {
+			update(SALUDO, "{\"content\": \"%s\"}".formatted(content))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.detail").value("El código del snippet no puede estar vacío"));
+		}
+
+		verify(printScript, never()).validate(anyString(), anyString());
+		assertNothingChanged();
+	}
+
+	@Test
 	void anUnknownVersionIsABadRequest() throws Exception {
 		update(SALUDO, "{\"content\": \"println(1);\", \"version\": \"9.9\"}")
 				.andExpect(status().isBadRequest());

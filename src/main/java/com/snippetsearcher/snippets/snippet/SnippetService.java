@@ -41,6 +41,7 @@ public class SnippetService {
 	// Si algo falla después de guardar el archivo, se borra: no queda un
 	// snippet a medias.
 	public SnippetResponse create(CreateSnippetRequest request) {
+		requireCode(request.content());
 		var language = languages.resolve(request.language(), request.version());
 		var diagnostics = language.language().validate(request.content(), language.version());
 		if (!diagnostics.isEmpty()) {
@@ -100,6 +101,7 @@ public class SnippetService {
 		if (access == null || !access.canWrite()) {
 			throw new SnippetAccessDeniedException(id);
 		}
+		requireCode(request.content());
 
 		var languageName = request.language() == null ? snippet.language() : request.language();
 		// Si cambia el lenguaje y no viene la versión, se usa la versión por
@@ -156,6 +158,14 @@ public class SnippetService {
 		var content = storage.get(snippet.contentKey()).orElse("");
 		return new SnippetResponse(snippet.id().toString(), snippet.name(), snippet.description(),
 				snippet.language(), snippet.version(), extension, content, snippet.compliance(), snippet.author());
+	}
+
+	// Un snippet sin código no se guarda: el Asset Service no acepta archivos
+	// vacíos, y PrintScript lo daría por válido.
+	private static void requireCode(String content) {
+		if (content.isBlank()) {
+			throw new EmptySnippetException();
+		}
 	}
 
 	// Si borrar el archivo también falla, se responde con el error original: es
