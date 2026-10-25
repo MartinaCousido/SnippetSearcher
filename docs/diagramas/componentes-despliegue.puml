@@ -51,7 +51,7 @@ queue "Redis Streams" as Redis
 Usuario --> Proxy : HTTPS
 Proxy --> UI : HTTP\n/
 Proxy --> Snippets : HTTP\n/api/
-Proxy --> Permisos : HTTP\n/api/permissions/
+Proxy --> Permisos : HTTP\nPOST /api/permissions/{id}/share
 Proxy ..> LE : certificado
 UI --> Auth0 : login (OAuth)
 

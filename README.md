@@ -205,7 +205,7 @@ Las conexiones `memory` indican que, a nivel lógico, los módulos se llaman com
 
 ### Vista de despliegue
 ![Vista de despliegue](docs/diagramas/componentes-despliegue.png)
-Todo entra por el **proxy** (nginx), con HTTPS: le pasa `/` a la UI, `/api/permissions/` a Permisos y el resto de `/api/` a Snippets. Es el único servicio con puertos públicos. Ver [Contrato con la UI](#contrato-con-la-ui).
+Todo entra por el **proxy** (nginx), con HTTPS: le pasa `/` a la UI, el pedido de compartir (`POST /api/permissions/{id}/share`) a Permisos y el resto de `/api/` a Snippets. Es el único servicio con puertos públicos. Ver [Contrato con la UI](#contrato-con-la-ui).
 
 Cada módulo se despliega como un servicio independiente con API HTTP. Snippets y Permisos tienen **cada uno su propio Postgres**. El **código de los snippets no va a Postgres**: se guarda en un bucket, detrás de la interfaz `Snippet Storage`. Solo Snippets lo lee y lo escribe: a los servicios de lenguaje les manda el código en cada pedido.
 
@@ -307,10 +307,11 @@ La UI tiene una sola variable, `BACKEND_URL`, y los tests de Cypress de la cáte
 | Ruta que pide la UI | Va a |
 |---|---|
 | `/api/snippets…`, `/api/rules…`, `/api/languages` | Snippet Service |
-| `/api/permissions…` | Permission Service |
+| `POST /api/permissions/{id}/share` | Permission Service |
 
 - El proxy **saca el `/api`**: los servicios exponen `/snippets`, `/permissions`, etc., sin prefijo. Así su código no depende de cómo se publiquen.
 - Todo lo que no empieza con `/api` va a la UI.
+- De Permission Service se publica solo compartir: el resto de sus endpoints los usa Snippet Service por la red interna. Tampoco se publica `/api/actuator` (el health de los servicios). Los dos responden 404 desde afuera (ver [Reverse proxy](https://github.com/MartinaCousido/SnippetSearcher-infra#reverse-proxy) en el repo de infra).
 
 | Dónde | Proxy | `BACKEND_URL` |
 |---|---|---|
