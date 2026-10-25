@@ -45,4 +45,12 @@ public class PermissionServiceClient implements PermissionClient {
 				.retrieve()
 				.body(Access.class);
 	}
+
+	@Override
+	public void deleteAll(UUID snippetId) {
+		client.delete()
+				.uri("/permissions/{snippetId}", snippetId)
+				.retrieve()
+				.toBodilessEntity();
+	}
 }

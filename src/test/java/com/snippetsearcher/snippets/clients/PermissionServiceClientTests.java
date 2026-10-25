@@ -68,4 +68,15 @@ class PermissionServiceClientTests {
 
 		assertThat(client.access(SNIPPET_ID)).isEqualTo(new Access(true, false));
 	}
+
+	@Test
+	void deletesThePermissionsOfASnippet() {
+		server.expect(requestTo("http://permission-service/permissions/" + SNIPPET_ID))
+				.andExpect(method(HttpMethod.DELETE))
+				.andRespond(withStatus(HttpStatus.NO_CONTENT));
+
+		client.deleteAll(SNIPPET_ID);
+
+		server.verify();
+	}
 }
