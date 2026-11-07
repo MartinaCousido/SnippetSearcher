@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.snippetsearcher.snippets.clients.Access;
 import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
+import com.snippetsearcher.snippets.security.TestUsers;
 
 // GET /snippets/{id} contra la base real. Permission Service y el Snippet
 // Storage se simulan.
@@ -56,7 +57,7 @@ class GetSnippetTests {
 	void theOwnerSeesTheSnippetWithItsCode() throws Exception {
 		when(permissions.access(SALUDO)).thenReturn(new Access(true, true));
 
-		mvc.perform(get("/snippets/{id}", SALUDO))
+		mvc.perform(get("/snippets/{id}", SALUDO).with(TestUsers.ana()))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.id").value(SALUDO.toString()))
 				.andExpect(jsonPath("$.name").value("Saludo"))
@@ -73,7 +74,7 @@ class GetSnippetTests {
 	void aUserItWasSharedWithAlsoSeesIt() throws Exception {
 		when(permissions.access(SALUDO)).thenReturn(new Access(true, false));
 
-		mvc.perform(get("/snippets/{id}", SALUDO))
+		mvc.perform(get("/snippets/{id}", SALUDO).with(TestUsers.ana()))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.content").value("println(\"hola\");"));
 	}
@@ -82,18 +83,18 @@ class GetSnippetTests {
 	void aUserWithoutAccessGetsForbidden() throws Exception {
 		when(permissions.access(SALUDO)).thenReturn(new Access(false, false));
 
-		mvc.perform(get("/snippets/{id}", SALUDO)).andExpect(status().isForbidden());
+		mvc.perform(get("/snippets/{id}", SALUDO).with(TestUsers.ana())).andExpect(status().isForbidden());
 		verify(storage, never()).get(any());
 	}
 
 	@Test
 	void aSnippetThatDoesNotExistIsNotFound() throws Exception {
-		mvc.perform(get("/snippets/{id}", UNKNOWN)).andExpect(status().isNotFound());
+		mvc.perform(get("/snippets/{id}", UNKNOWN).with(TestUsers.ana())).andExpect(status().isNotFound());
 		verify(permissions, never()).access(any());
 	}
 
 	@Test
 	void anIdThatIsNotAUuidIsABadRequest() throws Exception {
-		mvc.perform(get("/snippets/{id}", "42")).andExpect(status().isBadRequest());
+		mvc.perform(get("/snippets/{id}", "42").with(TestUsers.ana())).andExpect(status().isBadRequest());
 	}
 }

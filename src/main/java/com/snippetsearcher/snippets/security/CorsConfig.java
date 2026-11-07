@@ -9,7 +9,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
 
 // Qué páginas de otro origin pueden llamar a este servicio desde el navegador
 // (ver CORS en el README). Con el proxy, la UI y la API están en el mismo
@@ -17,9 +16,8 @@ import org.springframework.web.filter.CorsFilter;
 // Los origins salen de CORS_ALLOWED_ORIGINS, separados por comas. Sin la
 // variable, no se acepta ningún origin externo.
 //
-// Cuando entre Spring Security (Auth0), activar http.cors(): usa este mismo
-// CorsConfigurationSource. Si no, el preflight (OPTIONS) llega sin token y
-// responde 401.
+// Lo aplica Spring Security (http.cors() en SecurityConfig), antes de pedir el
+// token: el preflight (OPTIONS) llega sin token.
 @Configuration
 public class CorsConfig {
 
@@ -40,12 +38,5 @@ public class CorsConfig {
 		var source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration("/**", config);
 		return source;
-	}
-
-	// Sin Spring Security, nadie usa el CorsConfigurationSource: este filtro lo
-	// aplica a cada pedido.
-	@Bean
-	public CorsFilter corsFilter(CorsConfigurationSource corsConfigurationSource) {
-		return new CorsFilter(corsConfigurationSource);
 	}
 }

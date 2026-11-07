@@ -35,7 +35,7 @@ class CorsWithoutOriginsTests {
 	void sameOriginIsNotAffected() throws Exception {
 		mvc.perform(get("/languages")
 						.header("Host", "snippetsearcher-dev.duckdns.org")
-						.header("Origin", "http://snippetsearcher-dev.duckdns.org"))
+						.header("Origin", "http://snippetsearcher-dev.duckdns.org").with(TestUsers.ana()))
 				.andExpect(status().isOk());
 	}
 }

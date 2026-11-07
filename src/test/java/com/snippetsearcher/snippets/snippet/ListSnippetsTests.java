@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
+import com.snippetsearcher.snippets.security.TestUsers;
 
 // GET /snippets contra la base real. Permission Service y el Snippet Storage
 // se simulan.
@@ -51,8 +52,8 @@ class ListSnippetsTests {
 	@BeforeEach
 	void setUp() {
 		repository.deleteAll();
-		save(SALUDO, "Saludo", "dev-user");
-		save(BUCLE, "bucle", "dev-user");
+		save(SALUDO, "Saludo", TestUsers.ANA);
+		save(BUCLE, "bucle", TestUsers.ANA);
 		save(AJENO, "ajeno", "auth0|otro");
 		save(COMPARTIDO, "compartido", "auth0|otro");
 		when(storage.get(anyString())).thenAnswer(call -> Optional.of("código de " + call.getArgument(0)));
@@ -67,7 +68,7 @@ class ListSnippetsTests {
 
 	@Test
 	void listsOwnAndSharedSnippetsSortedByName() throws Exception {
-		mvc.perform(get("/snippets"))
+		mvc.perform(get("/snippets").with(TestUsers.ana()))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.page").value(0))
 				.andExpect(jsonPath("$.page_size").value(10))
@@ -81,7 +82,7 @@ class ListSnippetsTests {
 
 	@Test
 	void ownerListsOnlyTheUsersSnippets() throws Exception {
-		mvc.perform(get("/snippets").param("relation", "owner"))
+		mvc.perform(get("/snippets").param("relation", "owner").with(TestUsers.ana()))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.count").value(2))
 				.andExpect(jsonPath("$.snippets[*].name").value(contains("bucle", "Saludo")));
@@ -89,14 +90,14 @@ class ListSnippetsTests {
 
 	@Test
 	void sharedListsOnlyTheSnippetsSharedWithTheUser() throws Exception {
-		mvc.perform(get("/snippets").param("relation", "shared"))
+		mvc.perform(get("/snippets").param("relation", "shared").with(TestUsers.ana()))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.snippets[*].name").value(contains("compartido")));
 	}
 
 	@Test
 	void filtersByNameWithoutCaringAboutCase() throws Exception {
-		mvc.perform(get("/snippets").param("name", "SAL"))
+		mvc.perform(get("/snippets").param("name", "SAL").with(TestUsers.ana()))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.count").value(1))
 				.andExpect(jsonPath("$.snippets[0].name").value("Saludo"));
@@ -104,7 +105,7 @@ class ListSnippetsTests {
 
 	@Test
 	void paginatesStartingAtZero() throws Exception {
-		mvc.perform(get("/snippets").param("page", "1").param("page_size", "2"))
+		mvc.perform(get("/snippets").param("page", "1").param("page_size", "2").with(TestUsers.ana()))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.page").value(1))
 				.andExpect(jsonPath("$.page_size").value(2))
@@ -116,7 +117,7 @@ class ListSnippetsTests {
 	void aUserWithoutSnippetsGetsAnEmptyPage() throws Exception {
 		when(permissions.accessibleSnippets("all")).thenReturn(List.of());
 
-		mvc.perform(get("/snippets"))
+		mvc.perform(get("/snippets").with(TestUsers.ana()))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.count").value(0))
 				.andExpect(jsonPath("$.snippets", empty()));
@@ -124,9 +125,9 @@ class ListSnippetsTests {
 
 	@Test
 	void invalidParametersAreABadRequest() throws Exception {
-		mvc.perform(get("/snippets").param("page", "-1")).andExpect(status().isBadRequest());
-		mvc.perform(get("/snippets").param("page_size", "0")).andExpect(status().isBadRequest());
-		mvc.perform(get("/snippets").param("relation", "amigos")).andExpect(status().isBadRequest());
+		mvc.perform(get("/snippets").param("page", "-1").with(TestUsers.ana())).andExpect(status().isBadRequest());
+		mvc.perform(get("/snippets").param("page_size", "0").with(TestUsers.ana())).andExpect(status().isBadRequest());
+		mvc.perform(get("/snippets").param("relation", "amigos").with(TestUsers.ana())).andExpect(status().isBadRequest());
 		verify(permissions, never()).accessibleSnippets("amigos");
 	}
 }

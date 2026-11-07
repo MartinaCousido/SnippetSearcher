@@ -8,16 +8,26 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-// PermissionClient por HTTP. No manda el userId: Permission Service sabe quién
-// pide. Mientras no esté Auth0 los dos usan dev-user; con Auth0, acá se va a
-// reenviar el token del usuario.
+import com.snippetsearcher.snippets.security.CurrentUser;
+
+// PermissionClient por HTTP. No manda el userId: le reenvía a Permission
+// Service el token del usuario, y Permission Service saca de ahí quién pide.
 @Component
 public class PermissionServiceClient implements PermissionClient {
 
 	private final RestClient client;
 
-	public PermissionServiceClient(RestClient.Builder builder, @Value("${permission-service.url}") String baseUrl) {
-		this.client = builder.baseUrl(baseUrl).build();
+	public PermissionServiceClient(RestClient.Builder builder, @Value("${permission-service.url}") String baseUrl,
+			CurrentUser currentUser) {
+		this.client = builder
+				.baseUrl(baseUrl)
+				// Antes de cada pedido, agrega el mismo token que recibió este
+				// servicio. Corre en el hilo del pedido del usuario.
+				.requestInterceptor((request, body, execution) -> {
+					currentUser.token().ifPresent(token -> request.getHeaders().setBearerAuth(token));
+					return execution.execute(request, body);
+				})
+				.build();
 	}
 
 	@Override

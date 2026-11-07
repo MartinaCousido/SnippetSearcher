@@ -24,6 +24,7 @@ import org.springframework.web.client.ResourceAccessException;
 import com.snippetsearcher.snippets.clients.Access;
 import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
+import com.snippetsearcher.snippets.security.TestUsers;
 
 // DELETE /snippets/{id} contra la base real. Los otros servicios se simulan.
 @SpringBootTest
@@ -49,13 +50,13 @@ class DeleteSnippetTests {
 	void setUp() {
 		repository.deleteAll();
 		repository.save(new Snippet(SALUDO, "Saludo", "Saluda", "printscript", "1.1", SALUDO.toString(),
-				"dev-user"));
+				TestUsers.ANA));
 		when(permissions.access(SALUDO)).thenReturn(new Access(true, true));
 	}
 
 	@Test
 	void theOwnerDeletesTheSnippetItsCodeAndItsPermissions() throws Exception {
-		mvc.perform(delete("/snippets/{id}", SALUDO)).andExpect(status().isNoContent());
+		mvc.perform(delete("/snippets/{id}", SALUDO).with(TestUsers.ana())).andExpect(status().isNoContent());
 
 		assertThat(repository.findById(SALUDO)).isEmpty();
 		verify(storage).delete(SALUDO.toString());
@@ -66,7 +67,7 @@ class DeleteSnippetTests {
 	void aUserItWasSharedWithCannotDeleteIt() throws Exception {
 		when(permissions.access(SALUDO)).thenReturn(new Access(true, false));
 
-		mvc.perform(delete("/snippets/{id}", SALUDO)).andExpect(status().isForbidden());
+		mvc.perform(delete("/snippets/{id}", SALUDO).with(TestUsers.ana())).andExpect(status().isForbidden());
 
 		assertNothingWasDeleted();
 	}
@@ -75,7 +76,7 @@ class DeleteSnippetTests {
 	void aUserWithoutAccessCannotDeleteIt() throws Exception {
 		when(permissions.access(SALUDO)).thenReturn(new Access(false, false));
 
-		mvc.perform(delete("/snippets/{id}", SALUDO)).andExpect(status().isForbidden());
+		mvc.perform(delete("/snippets/{id}", SALUDO).with(TestUsers.ana())).andExpect(status().isForbidden());
 
 		assertNothingWasDeleted();
 	}
@@ -83,7 +84,7 @@ class DeleteSnippetTests {
 	// Primero se busca: si no existe es 404, sin preguntarle a Permisos.
 	@Test
 	void anUnknownSnippetIsNotFound() throws Exception {
-		mvc.perform(delete("/snippets/{id}", UNKNOWN)).andExpect(status().isNotFound());
+		mvc.perform(delete("/snippets/{id}", UNKNOWN).with(TestUsers.ana())).andExpect(status().isNotFound());
 
 		verify(permissions, never()).access(any());
 		verify(permissions, never()).deleteAll(any());
@@ -94,7 +95,7 @@ class DeleteSnippetTests {
 	void ifTheCodeCannotBeDeletedTheSnippetStays() throws Exception {
 		doThrow(new ResourceAccessException("Asset Service caído")).when(storage).delete(anyString());
 
-		mvc.perform(delete("/snippets/{id}", SALUDO)).andExpect(status().isBadGateway());
+		mvc.perform(delete("/snippets/{id}", SALUDO).with(TestUsers.ana())).andExpect(status().isBadGateway());
 
 		assertThat(repository.findById(SALUDO)).isPresent();
 		verify(permissions, never()).deleteAll(any());
@@ -105,7 +106,7 @@ class DeleteSnippetTests {
 	void ifThePermissionsCannotBeDeletedTheSnippetIsDeletedAnyway() throws Exception {
 		doThrow(new ResourceAccessException("Permission Service caído")).when(permissions).deleteAll(SALUDO);
 
-		mvc.perform(delete("/snippets/{id}", SALUDO)).andExpect(status().isNoContent());
+		mvc.perform(delete("/snippets/{id}", SALUDO).with(TestUsers.ana())).andExpect(status().isNoContent());
 
 		assertThat(repository.findById(SALUDO)).isEmpty();
 		verify(storage).delete(SALUDO.toString());

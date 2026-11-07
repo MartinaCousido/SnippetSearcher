@@ -32,6 +32,7 @@ import com.snippetsearcher.snippets.clients.Diagnostic.Range;
 import com.snippetsearcher.snippets.clients.Language;
 import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
+import com.snippetsearcher.snippets.security.TestUsers;
 
 // POST /snippets contra la base real. Los otros servicios (PrintScript, Asset
 // Service y Permission Service) se simulan: sus clientes tienen tests propios.
@@ -63,7 +64,7 @@ class CreateSnippetTests {
 	}
 
 	private ResultActions create(String body) throws Exception {
-		return mvc.perform(post("/snippets").contentType(MediaType.APPLICATION_JSON).content(body));
+		return mvc.perform(post("/snippets").contentType(MediaType.APPLICATION_JSON).content(body).with(TestUsers.ana()));
 	}
 
 	private String body(String language, String version) {
@@ -86,7 +87,7 @@ class CreateSnippetTests {
 				.andExpect(jsonPath("$.extension").value("ps"))
 				.andExpect(jsonPath("$.content").value(CODE))
 				.andExpect(jsonPath("$.compliance").value("pending"))
-				.andExpect(jsonPath("$.author").value("dev-user"));
+				.andExpect(jsonPath("$.author").value(TestUsers.ANA));
 
 		var snippet = repository.findAll().getFirst();
 		verify(printScript).validate(CODE, "1.0");

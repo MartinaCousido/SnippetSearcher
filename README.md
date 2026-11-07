@@ -525,13 +525,23 @@ docker compose up --build
 
 Los puertos de Postgres y del Asset Service solo se publican en `127.0.0.1`: no son accesibles desde otras máquinas de la red. Los archivos de los snippets quedan en el volumen `azurite-data` y sobreviven a cada reinicio.
 
-Para comprobar que un servicio está arriba y conectado a su base: http://localhost:8080/actuator/health (o `8081`) tiene que responder `"status":"UP"`, con `db` también en `UP`.
+Para comprobar que un servicio está arriba y conectado a su base: http://localhost:8080/actuator/health (o `8081`) tiene que responder `"status":"UP"`, con `db` también en `UP`. El health no pide token.
+
+**Auth0.** El resto de los endpoints pide el token de Auth0: sin token responden 401, y sin el permiso de la operación, 403 (ver [Roles](#roles)). `AUTH0_DOMAIN` y `AUTH0_AUDIENCE` ya están en el `docker-compose.yml`: no son secretos y no van en el `.env`. Sin ellas, el servicio no arranca. Para llamar a la API con `curl`, se consigue un token desde [SnippetSearcher-infra](https://github.com/MartinaCousido/SnippetSearcher-infra#auth0):
+
+```bash
+cd ../SnippetSearcher-infra/auth0
+export TOKEN=$(npm run --silent token)   # abre el login: entrar con ana@example.com
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/snippets
+```
 
 Para bajar todo: `docker compose -f docker-compose.sistema.yml down`. Los datos quedan en volúmenes de Docker; para borrarlos también, agregar `-v`.
 
 ### Correr los tests
 
 Los tests levantan el servicio completo, así que necesitan la base arriba y las variables de conexión. Corren contra una **base aparte, `snippets_test`**, en el mismo contenedor: antes de cada test se borran los datos, y así no se pierden los que usa el servicio levantado en `snippets`.
+
+Los tests no llaman a Auth0. Cada pedido arma su usuario con `jwt()` de `spring-security-test` (`security/TestUsers`), y Gradle les pasa valores de prueba para `AUTH0_DOMAIN` y `AUTH0_AUDIENCE` (`build.gradle`).
 
 Con la base levantada (`docker compose up -d snippets-db`), crear la base de tests una sola vez:
 
