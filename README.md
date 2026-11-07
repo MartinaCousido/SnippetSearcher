@@ -29,7 +29,7 @@ A lo largo del cuatrimestre se irán sumando requerimientos no funcionales.
 
 ## User stories
 
-Los roles (desarrollador, administrador, investigador, owner) solo indican el punto de vista de cada historia; **no** hace falta implementar permisos por rol por ahora.
+Los roles (desarrollador, administrador, investigador, owner) indican el punto de vista de cada historia. La cátedra aclara que no hace falta habilitar funciones por rol, pero que en el futuro podría pedirlo. Ver [Roles](#roles).
 
 | # | Historia | Rol | Puntos clave |
 |---|---|---|---|
@@ -235,7 +235,21 @@ Los flujos más importantes, en PlantUML dentro de [`docs/diagramas/flujos/`](do
 ![Linting automático](docs/diagramas/flujos/secuencia-linting-automatico.png)
 
 ## Roles
-Los roles de las user stories describen **puntos de vista**, no permisos distintos en el sistema. Hoy cualquier usuario autenticado puede hacer todo sobre sus propios snippets. La única distinción real que el sistema aplica es **owner vs. usuario con quien se compartió el snippet**.
+La cátedra lo aclara en las [user stories](docs/Snippet%20Searcher%20-%20Casos%20de%20uso.pdf):
+
+> Las User Stories detallan distintos usuarios: administrador, desarrollador, investigador. Esto no quiere decir que tengan que habilitar las funcionalidades por tipo de usuario, es simplemente para que entiendan el punto de vista de cada caso de uso. En el futuro sí podríamos decidir habilitar o deshabilitar funcionalidades según el rol.
+
+Por eso el sistema tiene el mecanismo de roles armado, pero hoy todos los usuarios reciben el mismo rol, con todos los permisos. Cada pedido pasa por tres controles:
+
+| Control | Pregunta | Quién responde | Si falla |
+|---|---|---|---|
+| 1. Autenticación | ¿Quién sos? | **Auth0**: el usuario inicia sesión y recibe un token que dice quién es (`sub`) | **401** |
+| 2. Permiso de la API | ¿Qué tipo de cosas podés hacer? | **Auth0** pone en el token los permisos del rol del usuario (`read:snippets`, `write:snippets`), y cada servicio los revisa | **403** |
+| 3. Dueño | ¿Sobre cuál snippet? | **Permission Service**: el owner lee, edita, borra y comparte; el usuario con acceso compartido solo lee | **403** |
+
+Si la cátedra pide roles distintos, se crean en Auth0 y se reparten los permisos. El código de los servicios no cambia. Ver **Roles y permisos** en [Decisiones técnicas](#decisiones-técnicas).
+
+Los roles de las user stories:
 
 | Rol | Qué hace | User stories |
 |---|---|---|
@@ -363,7 +377,13 @@ CORS es la regla del navegador que decide si una página puede llamar a una API 
 | `testSnippet(snippetId, test)` | `POST /snippets/{id}/tests/run` con `{ input, output }` | `{ result: "success" \| "fail" }` |
 | `getUserFriends(name, page, pageSize)` | — | Sigue con datos falsos mientras el módulo User esté en standby |
 
-Todos los pedidos llevan el token de Auth0 (`Authorization: Bearer …`) cuando esté Auth0.
+Todos los pedidos llevan el token de Auth0 (`Authorization: Bearer …`).
+
+- Sin token, o con un token vencido o de otra API: **401**.
+- Sin el permiso que pide la operación: **403**.
+  - `read:snippets`: los `GET`, correr un test (`POST /snippets/{id}/tests/run`) y formatear sin guardar (`POST /snippets/{id}/format`).
+  - `write:snippets`: el resto de los `POST`, `PUT` y `DELETE` (crear, editar, borrar, compartir, crear y borrar tests, cambiar reglas).
+- Además, cada operación sobre un snippet revisa en Permission Service si el usuario es el owner o tiene acceso compartido (los 403 de la tabla).
 
 ### Formatos
 
@@ -374,7 +394,7 @@ TestCase = { id, name, input: string[], output: string[] }
 ```
 
 - `compliance` usa los valores de la UI: `pending`, `failed`, `not-compliant`, `compliant`.
-- `author` es el `userId` de Auth0 del owner, hasta que exista el módulo User. Snippet Service lo guarda al crear el snippet (ver Decisiones técnicas).
+- `author` es el `userId` de Auth0 del owner (el `sub` del token, por ejemplo `auth0|abc123`), hasta que exista el módulo User. Snippet Service lo guarda al crear el snippet (ver Decisiones técnicas).
 - `description` y `version` no los manda la UI de la cátedra: son opcionales al crear. La versión toma la `default-version` del lenguaje: para PrintScript es **`1.1`**.
 - `Diagnostic` es el formato de [Decisiones técnicas](#decisiones-técnicas): `{ rule, message, range: { start: { line, column }, end: { line, column } } }`.
 
@@ -420,11 +440,11 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Organización del código | ✅ Definido | **Paquetes por tema**, no por tipo. Snippet Service: `snippet/`, `testcase/`, `rules/`, `clients/`, `language/` (lenguajes soportados y sus versiones) y `security/` (quién es el usuario). Permission Service: `permission/`, `security/`. La arquitectura de servicios no cambia |
 | Reglas de lint y formateo | ✅ Definido | **Cada usuario tiene su configuración.** Un snippet se lintea y se formatea con las reglas de su owner. Un usuario con quien se compartió ve ese mismo resultado, así que cada snippet tiene un solo estado de lint |
 | Versión formateada (US-13) | ✅ Definido | **Se guarda.** El formateo en segundo plano (US-12) guarda el resultado como un segundo archivo en el Snippet Storage; el original no se toca. La descarga lee uno o el otro |
-| Auth0 | ⏳ Pendiente | Crear el tenant, la app de la UI y la API. Queda para más adelante |
-| Usuario mientras no esté Auth0 | ✅ Definido (temporal) | Hasta que esté Auth0, Snippet Service y Permission Service usan un **usuario fijo, `dev-user`**. En cada servicio, una sola clase responde quién es el usuario que pide: hoy devuelve `dev-user`, y con Auth0 lo va a sacar del JWT. Snippet Service llama a Permission Service sin token; el contrato no cambia, porque con Auth0 le va a reenviar el token. Permite cerrar las user stories de punta a punta y que pasen los tests de Cypress, que tienen el login comentado. Se reemplaza al hacer Auth0 |
+| Auth0 | ✅ Definido | Decidido el 2026-11-07, sobre la demo de la cátedra ([austral-ingsis/auth0-integration](https://github.com/austral-ingsis/auth0-integration)). Se implementa en #55. **Un solo tenant para dev y prod**: así la UI sigue siendo una sola imagen para los dos ambientes. **API** con identificador (`audience`) **`https://snippetsearcher-api`**: es solo un nombre, no una página. La **UI es una aplicación SPA** de Auth0 (corre entera en el navegador), con las direcciones de local, dev y prod. Los recursos de Auth0 se crean **con Pulumi**, como código, en `SnippetSearcher-infra/auth0/` ([SnippetSearcher-infra#33](https://github.com/MartinaCousido/SnippetSearcher-infra/issues/33)). Snippet Service y Permission Service validan el token con Spring Security (*resource server*): la firma, `iss`, `aud` y `exp`, sin llamar a Auth0 en cada pedido. **El usuario es el `sub` del token**: una sola clase de cada servicio lo lee (`security/CurrentUser`). Snippet Service le reenvía el token del usuario a Permission Service. Reemplaza al usuario fijo `dev-user` que se usó mientras no estaba Auth0; los snippets viejos de la VM de dev, con owner `dev-user`, quedan como registro |
+| Roles y permisos | ✅ Definido | Decidido el 2026-11-07. **Dos permisos** en la API de Auth0: `read:snippets` y `write:snippets`, con **RBAC** activado (Auth0 solo pone en el token los permisos que el usuario tiene por su rol). **Un rol, `snippet-user`**, con los dos. Una *Action* de Auth0 (una función que corre en cada login) se lo da a todo usuario que no tiene rol. Hoy todos reciben el rol completo, porque la cátedra aclara que no hace falta habilitar funciones por rol ([Roles](#roles)). Si lo pide, se crean los roles en Pulumi y se reparten los permisos, sin tocar el código de los servicios. Qué pide cada operación: **leer** (`GET`, correr un test, formatear sin guardar) pide `read:snippets`; **crear, editar, borrar, compartir y cambiar reglas** pide `write:snippets`. Los endpoints nuevos siguen la misma regla. Sin el permiso: **403**. Sobre cuál snippet puede actuar cada usuario (owner o compartido) lo sigue decidiendo Permission Service |
 | Autor de cada snippet | ✅ Definido | Snippet Service guarda en la tabla `snippets` quién lo creó (`author`, el `userId`). El listado lo muestra sin preguntarle a Permission Service por cada snippet. El owner no cambia nunca, así que el dato no se desactualiza. Permission Service sigue siendo quien decide los permisos |
 | Versión por defecto de PrintScript | ✅ Definido | **`1.1`**, la más completa (`const`, `if`, `readInput`). Se usa cuando la UI no manda la versión. La extensión de los archivos es **`ps`**: es la que usan los tests de Cypress de la cátedra (`example_ps.ps`). Los lenguajes, sus versiones y su extensión se configuran en `application.properties` (`languages.<nombre>.*`) |
-| Módulo User | ⏳ Pendiente | En qué servicio vive la búsqueda de usuarios (US-7). Se consulta con la cátedra |
+| Módulo User | ⏳ Pendiente | En qué servicio vive la búsqueda de usuarios (US-7). Se consulta con la cátedra. Opción: la **Management API de Auth0** (`GET /api/v2/users?q=…`), con una app *Machine to Machine* con permiso `read:users`. Ver #57 |
 | Framework de tests | ✅ Definido | **JUnit 5**, con los starters de test de Spring Boot (lo que genera Spring Initializr). Los tests necesitan la base levantada y usan una base aparte (`snippets_test`, `permisos_test`), porque borran los datos antes de cada test. Ver [Correr los tests](#correr-los-tests) |
 | Linter y cobertura | ⏳ Pendiente | Linter y cobertura mínima |
 | Cola de mensajes | ✅ Definido | **Redis Streams** (clase del 2026-10-13), para lintear y formatear en segundo plano (US-12, US-15). **Snippet Service se manda trabajo a sí mismo:** al crear o editar un snippet, o al cambiar una regla, marca los snippets afectados como `PENDING`, publica un mensaje por cada uno y responde enseguida. Un consumidor del mismo servicio llama a `Language.lint` o `format`, guarda el resultado y confirma el mensaje. Si falla, se reintenta; después del máximo de intentos, el snippet queda en `FAILED` y se sigue con el resto. Pros y contras, y la opción descartada, en #22. Imagen **`redis:8.2`**, con `appendonly` y un volumen, para que los mensajes pendientes sobrevivan a un reinicio de Redis. Snippet Service lo encuentra con la variable **`SPRING_DATA_REDIS_HOST`**, que Spring Boot lee sin configuración extra. Falta definir si hay un stream por tarea o uno solo, y cuántos reintentos. **Implementación propia con Spring Data Redis**, sin la librería de ayuda de la cátedra ([class-redis-streams](https://github.com/austral-ingsis/class-redis-streams)), que es opcional según el profesor. La librería confirma los mensajes al recibirlos (no permite reintentar), su `emit` no se puede llamar desde Java y es reactiva. Lo propio: productor (`XADD`), consumidor con *consumer group* que confirma (`XACK`) recién después de guardar el resultado, y reintento de los mensajes pendientes (`XPENDING` / `XCLAIM`) |
