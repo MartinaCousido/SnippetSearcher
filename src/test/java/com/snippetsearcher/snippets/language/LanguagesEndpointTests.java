@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
+import com.snippetsearcher.snippets.security.TestUsers;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -20,7 +21,7 @@ class LanguagesEndpointTests {
 	// La extensión es ps: los tests de Cypress de la cátedra suben archivos .ps.
 	@Test
 	void listsPrintScriptWithItsExtension() throws Exception {
-		mvc.perform(get("/languages"))
+		mvc.perform(get("/languages").with(TestUsers.ana()))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(1))
 				.andExpect(jsonPath("$[0].language").value("printscript"))

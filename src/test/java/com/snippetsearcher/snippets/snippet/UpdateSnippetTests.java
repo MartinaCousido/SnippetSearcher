@@ -34,6 +34,7 @@ import com.snippetsearcher.snippets.clients.Diagnostic.Range;
 import com.snippetsearcher.snippets.clients.Language;
 import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
+import com.snippetsearcher.snippets.security.TestUsers;
 
 // PUT /snippets/{id} contra la base real. Los otros servicios se simulan.
 @SpringBootTest
@@ -66,7 +67,7 @@ class UpdateSnippetTests {
 	void setUp() {
 		repository.deleteAll();
 		repository.save(new Snippet(SALUDO, "Saludo", "Saluda", "printscript", "1.0", SALUDO.toString(),
-				"dev-user"));
+				TestUsers.ANA));
 		// Ya se habría linteado: así se ve que el update lo vuelve a pending.
 		jdbc.update("UPDATE snippets SET compliance = 'compliant'");
 		when(permissions.access(SALUDO)).thenReturn(new Access(true, true));
@@ -74,7 +75,7 @@ class UpdateSnippetTests {
 	}
 
 	private ResultActions update(UUID id, String body) throws Exception {
-		return mvc.perform(put("/snippets/{id}", id).contentType(MediaType.APPLICATION_JSON).content(body));
+		return mvc.perform(put("/snippets/{id}", id).contentType(MediaType.APPLICATION_JSON).content(body).with(TestUsers.ana()));
 	}
 
 	private Snippet saved() {

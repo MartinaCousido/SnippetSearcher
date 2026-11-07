@@ -16,10 +16,11 @@ participant "Permission Service" as P
 queue "Redis Streams" as Q
 
 Usuario -> UI : nombre, lenguaje y código\n(archivo o editor)
-UI -> S : POST /snippets\n{ name, description, language, version, content }
+UI -> S : POST /snippets + Authorization: Bearer <token>\n{ name, description, language, version, content }
 note over S
-  Quién pide: hoy el usuario fijo dev-user.
-  Con Auth0, sale del JWT.
+  Valida el token de Auth0 (firma, iss, aud, exp).
+  Sin token válido: 401. Sin write:snippets: 403.
+  Quién pide: el "sub" del token.
 end note
 
 S -> PS : POST /validate { code, version }
@@ -32,7 +33,7 @@ else código válido
   S -> ST : PUT /v1/asset/snippets/{id} (código)
   group transacción
     S -> DB : guardar metadatos (compliance = pending, author)
-    S -> P : POST /permissions/{id}/owner
+    S -> P : POST /permissions/{id}/owner\n(reenvía el token del usuario)
     P --> S : 201
   end
   alt falla la base o Permisos
