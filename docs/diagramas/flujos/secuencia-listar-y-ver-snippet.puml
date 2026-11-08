@@ -1,0 +1,51 @@
+@startuml secuencia-listar-y-ver-snippet
+' Listar los snippets (US-5) y ver uno (US-6). Implementado en #35 y #37.
+
+title Listar snippets (US-5) y ver un snippet (US-6)
+autonumber
+skinparam sequenceMessageAlign center
+
+actor Usuario
+participant UI
+participant "Snippet Service" as S
+participant "Permission Service" as P
+database "Postgres\n(snippets)" as DB
+participant "Asset Service\n(Snippet Storage)" as ST
+
+== Listar (US-5) ==
+Usuario -> UI : abre la pantalla principal\no busca por nombre
+UI -> S : GET /snippets?page=&page_size=&name=
+S -> P : GET /permissions/snippets?relation=all
+P --> S : ids de los snippets propios y compartidos
+alt no tiene snippets
+  S --> UI : 200 { count: 0, snippets: [] }
+else tiene snippets
+  S -> DB : buscar esos ids, filtrar por nombre,\nordenar por nombre y paginar
+  DB --> S : página de snippets
+  loop por cada snippet de la página
+    S -> ST : GET /v1/asset/snippets/{id}
+    ST --> S : código
+  end
+  S --> UI : 200 { page, page_size, count, snippets }
+end
+UI --> Usuario : muestra la tabla
+
+== Ver (US-6) ==
+Usuario -> UI : hace clic en un snippet
+UI -> S : GET /snippets/{id}
+S -> DB : buscar el snippet
+alt no existe
+  S --> UI : 404
+else existe
+  S -> P : GET /permissions/{id}
+  P --> S : { canRead, canWrite }
+  alt canRead = false
+    S --> UI : 403
+  else canRead = true
+    S -> ST : GET /v1/asset/snippets/{id}
+    ST --> S : código
+    S --> UI : 200 Snippet
+    UI --> Usuario : muestra nombre, lenguaje y código
+  end
+end
+@enduml

@@ -1,0 +1,66 @@
+package com.snippetsearcher.snippets.clients;
+
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+
+import com.snippetsearcher.snippets.security.CurrentUser;
+
+// PermissionClient por HTTP. No manda el userId: le reenvía a Permission
+// Service el token del usuario, y Permission Service saca de ahí quién pide.
+@Component
+public class PermissionServiceClient implements PermissionClient {
+
+	private final RestClient client;
+
+	public PermissionServiceClient(RestClient.Builder builder, @Value("${permission-service.url}") String baseUrl,
+			CurrentUser currentUser) {
+		this.client = builder
+				.baseUrl(baseUrl)
+				// Antes de cada pedido, agrega el mismo token que recibió este
+				// servicio. Corre en el hilo del pedido del usuario.
+				.requestInterceptor((request, body, execution) -> {
+					currentUser.token().ifPresent(token -> request.getHeaders().setBearerAuth(token));
+					return execution.execute(request, body);
+				})
+				.build();
+	}
+
+	@Override
+	public void registerOwner(UUID snippetId) {
+		client.post()
+				.uri("/permissions/{snippetId}/owner", snippetId)
+				.retrieve()
+				.toBodilessEntity();
+	}
+
+	@Override
+	public List<UUID> accessibleSnippets(String relation) {
+		var ids = client.get()
+				.uri(uri -> uri.path("/permissions/snippets").queryParam("relation", relation).build())
+				.retrieve()
+				.body(new ParameterizedTypeReference<List<UUID>>() {
+				});
+		return ids == null ? List.of() : ids;
+	}
+
+	@Override
+	public Access access(UUID snippetId) {
+		return client.get()
+				.uri("/permissions/{snippetId}", snippetId)
+				.retrieve()
+				.body(Access.class);
+	}
+
+	@Override
+	public void deleteAll(UUID snippetId) {
+		client.delete()
+				.uri("/permissions/{snippetId}", snippetId)
+				.retrieve()
+				.toBodilessEntity();
+	}
+}

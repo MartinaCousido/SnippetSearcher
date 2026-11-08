@@ -1,0 +1,51 @@
+@startuml secuencia-linting-automatico
+' Cambiar las reglas de lint y lintear en segundo plano (US-14, US-15).
+' El formateo automático (US-11, US-12) sigue el mismo flujo.
+' Falta implementarlo: #18 y #23. Topología decidida: Snippet Service se manda
+' trabajo a sí mismo.
+
+title Cambiar reglas de linting y lintear en segundo plano (US-14, US-15)
+autonumber
+skinparam sequenceMessageAlign center
+
+actor Usuario
+participant UI
+participant "Snippet Service\n(API)" as S
+database "Postgres\n(snippets)" as DB
+queue "Redis Streams" as Q
+participant "Snippet Service\n(consumidor)" as C
+participant "Asset Service\n(Snippet Storage)" as ST
+participant "PrintScript Service" as PS
+
+Usuario -> UI : activa o desactiva reglas
+UI -> S : PUT /rules/lint (reglas)
+S -> DB : guardar las reglas del usuario
+S -> DB : sus snippets: compliance = pending
+loop por cada snippet afectado
+  S -> Q : XADD (snippetId)
+end
+S --> UI : 200 (no espera el lint)
+UI --> Usuario : reglas guardadas
+
+== En segundo plano ==
+loop por cada mensaje
+  C -> Q : XREADGROUP (consumer group)
+  Q --> C : mensaje (snippetId)
+  C -> ST : GET /v1/asset/snippets/{id}
+  ST --> C : código
+  C -> PS : lint(código, versión, reglas del owner)
+  alt lint sale bien
+    PS --> C : diagnostics
+    C -> DB : compliance = compliant / not-compliant
+    C -> Q : XACK (recién después de guardar)
+  else falla
+    note over C, Q
+      El mensaje queda sin confirmar y se
+      reintenta (XPENDING / XCLAIM).
+      Tras N intentos: compliance = failed,
+      XACK y se sigue con el resto.
+      A definir: N, y un stream o uno por tarea.
+    end note
+  end
+end
+@enduml
