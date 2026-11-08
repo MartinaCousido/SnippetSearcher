@@ -14,6 +14,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
 import com.snippetsearcher.snippets.language.LanguageCatalog;
+import com.snippetsearcher.snippets.rules.RuleKind;
+import com.snippetsearcher.snippets.rules.RuleService;
 import com.snippetsearcher.snippets.security.CurrentUser;
 import com.snippetsearcher.snippets.testcase.TestCaseService;
 import com.snippetsearcher.snippets.users.UserDirectory;
@@ -30,11 +32,12 @@ public class SnippetService {
 	private final CurrentUser currentUser;
 	private final UserDirectory users;
 	private final TestCaseService testCases;
+	private final RuleService rules;
 	private final TransactionTemplate transaction;
 
 	public SnippetService(LanguageCatalog languages, SnippetStorage storage, SnippetRepository repository,
 			PermissionClient permissions, CurrentUser currentUser, UserDirectory users, TestCaseService testCases,
-			TransactionTemplate transaction) {
+			RuleService rules, TransactionTemplate transaction) {
 		this.languages = languages;
 		this.storage = storage;
 		this.repository = repository;
@@ -42,6 +45,7 @@ public class SnippetService {
 		this.currentUser = currentUser;
 		this.users = users;
 		this.testCases = testCases;
+		this.rules = rules;
 		this.transaction = transaction;
 	}
 
@@ -139,6 +143,25 @@ public class SnippetService {
 		return new SnippetResponse(id.toString(), updated.name(), updated.description(), updated.language(),
 				updated.version(), language.extension(), request.content(), updated.compliance(),
 				authorOf(updated.author(), users.emails(List.of(updated.author()))));
+	}
+
+	// Formatea el código del editor con las reglas de formateo del owner (US-11),
+	// sin guardar nada. Lo pueden usar el owner y los usuarios con acceso
+	// compartido: un snippet se formatea siempre con las reglas de su owner.
+	// Si el formateador falla, 400 con los diagnostics, como un código inválido.
+	public FormatResponse format(UUID id, String content) {
+		var snippet = repository.findById(id).orElseThrow(() -> new SnippetNotFoundException(id));
+		var access = permissions.access(id);
+		if (access == null || !access.canRead()) {
+			throw new SnippetAccessDeniedException(id);
+		}
+		var language = languages.resolve(snippet.language(), snippet.version());
+		var formatted = language.language().format(content, language.version(),
+				rules.activeRules(snippet.author(), RuleKind.FORMAT));
+		if (formatted.failed()) {
+			throw new InvalidSnippetException(formatted.diagnostics());
+		}
+		return new FormatResponse(formatted.content());
 	}
 
 	// Testing automático (US-16): con el cambio ya guardado, corre todos los
