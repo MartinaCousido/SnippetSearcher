@@ -75,6 +75,7 @@ BucketSvc -up- Storage
 BucketSvc --> Bucket
 
 Snippets ..> Auth0 : valida JWT
+Snippets --> Auth0 : busca usuarios y emails\n(Management API, módulo User)
 Permisos ..> Auth0 : valida JWT
 
 @enduml

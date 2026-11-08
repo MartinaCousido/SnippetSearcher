@@ -35,6 +35,7 @@ import com.snippetsearcher.snippets.clients.Language;
 import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
 import com.snippetsearcher.snippets.security.TestUsers;
+import com.snippetsearcher.snippets.users.UserDirectory;
 
 // PUT /snippets/{id} contra la base real. Los otros servicios se simulan.
 @SpringBootTest
@@ -62,6 +63,10 @@ class UpdateSnippetTests {
 
 	@MockitoBean
 	private PermissionClient permissions;
+
+	// Auth0 (módulo User): sin email, el autor se muestra con su id.
+	@MockitoBean
+	private UserDirectory users;
 
 	@BeforeEach
 	void setUp() {
