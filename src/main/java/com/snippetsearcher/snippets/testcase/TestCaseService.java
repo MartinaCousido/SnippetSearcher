@@ -72,13 +72,22 @@ public class TestCaseService {
 		tests.delete(test);
 	}
 
-	// Corre un test con el código guardado del snippet. No guarda el
-	// resultado: el test puede no estar guardado todavía.
+	// Corre un test con el código guardado del snippet. Si viene el id de un
+	// test guardado y se corrió tal como está guardado, guarda el resultado
+	// (lastResult). Si se corrió con cambios sin guardar, o sin id, no.
+	@Transactional
 	public RunTestResponse run(UUID snippetId, RunTestRequest request) {
 		var snippet = readable(snippetId);
+		var saved = request.id() == null ? null
+				: tests.findByIdAndSnippetId(request.id(), snippetId)
+						.orElseThrow(() -> new TestCaseNotFoundException(request.id()));
 		var language = languages.resolve(snippet.language(), snippet.version());
 		var code = storage.get(snippet.contentKey()).orElse("");
-		return new RunTestResponse(runner.run(language, code, request.inputs(), request.outputs()));
+		var result = runner.run(language, code, request.inputs(), request.outputs());
+		if (saved != null && saved.inputs().equals(request.inputs()) && saved.outputs().equals(request.outputs())) {
+			saved.recordResult(result);
+		}
+		return new RunTestResponse(result);
 	}
 
 	// Corre todos los tests de un snippet recién actualizado y guarda el

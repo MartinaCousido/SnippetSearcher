@@ -217,6 +217,38 @@ class TestCasesTests {
 		run("{\"output\": []}").andExpect(jsonPath("$.result").value("fail"));
 	}
 
+	// Correr un test guardado, tal como está guardado, guarda su resultado.
+	@Test
+	void runningASavedTestSavesItsResult() throws Exception {
+		var id = createdId();
+
+		run("{\"id\": \"%s\", \"input\": [\"Ana\"], \"output\": [\"Hola Ana\"]}".formatted(id))
+				.andExpect(jsonPath("$.result").value("success"));
+
+		perform(get("/snippets/{id}/tests", SALUDO)).andExpect(jsonPath("$[0].lastResult").value("success"));
+	}
+
+	// Si se corre con cambios sin guardar, el resultado no es el del test
+	// guardado: no se guarda.
+	@Test
+	void runningASavedTestWithUnsavedChangesDoesNotSaveTheResult() throws Exception {
+		var id = createdId();
+
+		run("{\"id\": \"%s\", \"input\": [\"Ana\"], \"output\": [\"Hola Leo\"]}".formatted(id))
+				.andExpect(jsonPath("$.result").value("fail"));
+
+		perform(get("/snippets/{id}/tests", SALUDO)).andExpect(jsonPath("$[0].lastResult", nullValue()));
+	}
+
+	@Test
+	void runningATestOfAnotherSnippetIsNotFound() throws Exception {
+		var id = createdId();
+
+		perform(post("/snippets/{id}/tests/run", OTRO).contentType(MediaType.APPLICATION_JSON)
+						.content("{\"id\": \"%s\"}".formatted(id)))
+				.andExpect(status().isNotFound());
+	}
+
 	// US-7: el usuario con acceso compartido ve y corre los tests, pero no los
 	// crea, cambia ni borra.
 	@Test
