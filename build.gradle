@@ -53,6 +53,10 @@ tasks.named('test') {
 	// contexto abre conexiones a Postgres: con 10 por contexto (lo que trae
 	// Spring) se pasa del máximo de Postgres (100).
 	environment 'SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE', '2'
+	// Otra base de Redis que la del servicio levantado en local (la 0), igual
+	// que snippets_test en Postgres: si no, su consumidor se lleva los mensajes
+	// de los tests.
+	environment 'SPRING_DATA_REDIS_DATABASE', '1'
 }
 
 // Solo se genera el jar ejecutable de Spring Boot (bootJar), no el jar "plain":

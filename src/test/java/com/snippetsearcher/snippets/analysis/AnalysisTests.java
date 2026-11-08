@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -29,6 +30,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.snippetsearcher.snippets.clients.Access;
 import com.snippetsearcher.snippets.clients.Diagnostic;
@@ -71,6 +75,9 @@ class AnalysisTests {
 
 	@Autowired
 	private UserRuleRepository rules;
+
+	@Autowired
+	private PlatformTransactionManager transactions;
 
 	@Autowired
 	private AnalysisWorker worker;
@@ -224,6 +231,39 @@ class AnalysisTests {
 
 		assertThat(saved().compliance()).isEqualTo(Compliance.FAILED);
 		assertThat(saved().formattedKey()).isNull();
+	}
+
+	// El lint y el formateo corren a la vez: si el formateo termina después,
+	// no pisa el resultado del lint con el estado que había leído.
+	@Test
+	void aFormatThatEndsAfterTheLintDoesNotOverwriteIt() {
+		when(printScript.lint(anyString(), anyString(), anyMap())).thenReturn(List.of());
+		when(printScript.format(anyString(), anyString(), anyMap())).thenReturn(new Formatted("f", List.of()));
+		int lint = requested(AnalysisTask.LINT);
+		int format = requested(AnalysisTask.FORMAT);
+		var separate = new TransactionTemplate(transactions);
+		separate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+		// Mientras el formateo está en curso (ya leyó el snippet), termina el lint.
+		doAnswer(call -> {
+			separate.executeWithoutResult(status -> worker.process(AnalysisTask.LINT, SALUDO, lint));
+			return null;
+		}).when(storage).put(anyString(), anyString());
+
+		worker.process(AnalysisTask.FORMAT, SALUDO, format);
+
+		assertThat(saved().compliance()).isEqualTo(Compliance.COMPLIANT);
+		assertThat(saved().formattedKey()).isEqualTo(SALUDO + ".formatted");
+	}
+
+	// Los snippets de antes de #23 nunca se analizaron: se piden una sola vez.
+	@Test
+	void theSnippetsThatWereNeverAnalyzedAreRequestedOnce() {
+		requests.requestNeverAnalyzed();
+		requests.requestNeverAnalyzed();
+
+		verify(queue).publish(AnalysisTask.LINT, SALUDO, 1);
+		verify(queue).publish(AnalysisTask.FORMAT, SALUDO, 1);
+		assertThat(saved().compliance()).isEqualTo(Compliance.PENDING);
 	}
 
 	@Test

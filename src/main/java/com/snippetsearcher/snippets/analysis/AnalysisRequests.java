@@ -1,6 +1,7 @@
 package com.snippetsearcher.snippets.analysis;
 
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.Set;
 import java.util.UUID;
 
@@ -44,6 +45,14 @@ public class AnalysisRequests {
 	@Transactional
 	public void requestForAuthor(String author, AnalysisTask task) {
 		request(snippets.findIdsByAuthor(author), Set.of(task));
+	}
+
+	// Los snippets que nunca se analizaron (los de antes de #23) se lintean y
+	// formatean al arrancar el servicio. Después de pedirlos, su revisión ya
+	// no es 0: no se vuelven a pedir en el próximo arranque.
+	@Transactional
+	public void requestNeverAnalyzed() {
+		request(snippets.findIdsNeverAnalyzed(), EnumSet.allOf(AnalysisTask.class));
 	}
 
 	// Si Redis no responde, el snippet queda en PENDING y se registra: lo que

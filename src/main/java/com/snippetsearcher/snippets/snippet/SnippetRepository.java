@@ -20,4 +20,9 @@ public interface SnippetRepository extends JpaRepository<Snippet, UUID> {
 	// sus reglas.
 	@Query("select s.id from Snippet s where s.author = :author")
 	List<UUID> findIdsByAuthor(@Param("author") String author);
+
+	// Los que nunca se lintearon o formatearon: los que existían antes del
+	// lint en segundo plano (#23).
+	@Query("select s.id from Snippet s where s.lintRevision = 0 or s.formatRevision = 0")
+	List<UUID> findIdsNeverAnalyzed();
 }

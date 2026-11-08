@@ -15,6 +15,7 @@ import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.DynamicUpdate;
 
 import com.snippetsearcher.snippets.clients.Diagnostic;
 
@@ -22,6 +23,10 @@ import com.snippetsearcher.snippets.clients.Diagnostic;
 // acá: vive en el Snippet Storage, bajo la clave contentKey.
 @Entity
 @Table(name = "snippets")
+// Al guardar, solo se escriben las columnas que cambiaron. El lint y el
+// formateo corren a la vez y cada uno cambia lo suyo: así uno no pisa al otro
+// con lo que había leído antes.
+@DynamicUpdate
 public class Snippet {
 
 	@Id

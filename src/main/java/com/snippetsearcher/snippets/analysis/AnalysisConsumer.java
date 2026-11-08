@@ -39,6 +39,7 @@ public class AnalysisConsumer {
 
 	private final StringRedisTemplate redis;
 	private final AnalysisWorker worker;
+	private final AnalysisRequests requests;
 	private final int maxAttempts;
 	private final Duration retryAfter;
 	// Cada réplica del servicio es un consumidor distinto del mismo grupo.
@@ -46,10 +47,11 @@ public class AnalysisConsumer {
 
 	private StreamMessageListenerContainer<String, MapRecord<String, String, String>> container;
 
-	public AnalysisConsumer(StringRedisTemplate redis, AnalysisWorker worker,
+	public AnalysisConsumer(StringRedisTemplate redis, AnalysisWorker worker, AnalysisRequests requests,
 			@Value("${analysis.max-attempts}") int maxAttempts, @Value("${analysis.retry-after}") Duration retryAfter) {
 		this.redis = redis;
 		this.worker = worker;
+		this.requests = requests;
 		this.maxAttempts = maxAttempts;
 		this.retryAfter = retryAfter;
 	}
@@ -64,6 +66,7 @@ public class AnalysisConsumer {
 					record -> handle(task, record));
 		}
 		container.start();
+		requests.requestNeverAnalyzed();
 	}
 
 	@PreDestroy
