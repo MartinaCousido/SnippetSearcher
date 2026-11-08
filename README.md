@@ -93,19 +93,19 @@ Un snippet completo tal como viviría en la plataforma: código, metadatos, test
 ### Ejemplo con código (PrintScript 1.1)
 ```
 const nombre: string = readInput("Nombre:");
-let edad: number = readInput("Edad:");
+const mayor: boolean = readInput("¿Sos mayor de edad?");
 
 let saludo: string = "Hola " + nombre;
 println(saludo);
 
-if (edad > 17) {
+if (mayor) {
     println("Sos mayor de edad");
 } else {
     println("Sos menor de edad");
 }
 ```
 
-`const`, `readInput` e `if/else` existen a partir de PrintScript 1.1; la 1.0 solo tiene `let`, `println` y expresiones.
+`const`, `readInput`, `boolean` e `if/else` existen a partir de PrintScript 1.1; la 1.0 solo tiene `let`, `println` y expresiones. PrintScript no tiene comparaciones (`>`, `==`): el `if` recibe un valor `boolean`. Por eso el ejemplo pregunta directamente si es mayor de edad.
 
 ### Qué guarda la plataforma
 
@@ -125,13 +125,13 @@ Los inputs se entregan en orden a cada `readInput`, y los outputs esperados se c
 
 | Test | Inputs | Outputs esperados | Resultado |
 |---|---|---|---|
-| mayor de edad | `["Ana", 25]` | `["Hola Ana", "Sos mayor de edad"]` | ✅ pasa |
-| menor de edad | `["Leo", 12]` | `["Hola Leo", "Sos menor de edad"]` | ✅ pasa |
-| test mal escrito | `["Ana", 25]` | `["Hola Ana", "Sos menor de edad"]` | ❌ falla (la consigna permite guardar tests así) |
+| mayor de edad | `["Ana", "true"]` | `["Hola Ana", "Sos mayor de edad"]` | ✅ pasa |
+| menor de edad | `["Leo", "false"]` | `["Hola Leo", "Sos menor de edad"]` | ✅ pasa |
+| test mal escrito | `["Ana", "true"]` | `["Hola Ana", "Sos menor de edad"]` | ❌ falla (la consigna permite guardar tests así) |
 
 Cada vez que se edita el snippet, sus tests se corren automáticamente (#16).
 
-Los textos de `readInput` ("Nombre:", "Edad:") **no** cuentan como outputs: solo los `println` (ver **Tests de un snippet** en Decisiones técnicas).
+Los textos de `readInput` ("Nombre:", "¿Sos mayor de edad?") **no** cuentan como outputs: solo los `println` (ver **Tests de un snippet** en Decisiones técnicas).
 
 ### Qué pasa con versiones "malas" del snippet
 
@@ -183,8 +183,8 @@ La descarga (#13) ofrece las dos versiones: la original y la formateada.
 > Nombre:        ← la plataforma pide el input
   Martina        ← el usuario escribe
 < Hola Martina   ← el output aparece en el momento
-> Edad:
-  30
+> ¿Sos mayor de edad?
+  true
 < Sos mayor de edad
 ```
 
