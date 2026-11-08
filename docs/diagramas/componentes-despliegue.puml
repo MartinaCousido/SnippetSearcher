@@ -12,6 +12,7 @@ actor Usuario
 
 cloud "Auth0" as Auth0
 cloud "Let's Encrypt" as LE
+cloud "New Relic" as NR
 
 node "proxy (nginx)" <<80 / 443>> as ProxyNode {
   component "Reverse proxy" as Proxy
@@ -78,4 +79,14 @@ Snippets ..> Auth0 : valida JWT
 Snippets --> Auth0 : busca usuarios y emails\n(Management API, módulo User)
 Permisos ..> Auth0 : valida JWT
 
+' Observabilidad (#82): cada servicio Java manda métricas, traces y logs con
+' el agente de New Relic; el agente de infraestructura (fuera del stack, en la
+' VM) manda la salud de la VM y los logs de todos los contenedores.
+node "Agente de infraestructura\n(newrelic-infra)" as NRInfra
+Snippets ..> NR : métricas, traces y logs
+Permisos ..> NR
+PrintScript ..> NR
+BucketSvc ..> NR
+NRInfra ..> NR : salud de la VM\ny logs de los contenedores
+NR ..> Proxy : synthetics\n(GET / y /api/health)
 @enduml

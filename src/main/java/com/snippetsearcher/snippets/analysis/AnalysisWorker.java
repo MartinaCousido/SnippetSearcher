@@ -2,6 +2,8 @@ package com.snippetsearcher.snippets.analysis;
 
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +18,8 @@ import com.snippetsearcher.snippets.snippet.SnippetRepository;
 // resultado. Lo llama el consumidor de la cola, una vez por mensaje.
 @Service
 public class AnalysisWorker {
+
+	private static final Logger log = LoggerFactory.getLogger(AnalysisWorker.class);
 
 	private final SnippetRepository snippets;
 	private final SnippetStorage storage;
@@ -45,6 +49,7 @@ public class AnalysisWorker {
 			var violations = language.language().lint(code, language.version(),
 					rules.activeRules(snippet.author(), RuleKind.LINT));
 			snippet.recordLint(revision, violations);
+			log.info("lint del snippet {}: {} reglas incumplidas", snippetId, violations.size());
 			return;
 		}
 		var formatted = language.language().format(code, language.version(),
@@ -56,6 +61,7 @@ public class AnalysisWorker {
 		var key = formattedKey(snippet.contentKey());
 		storage.put(key, formatted.content());
 		snippet.recordFormatted(revision, key);
+		log.info("formateo del snippet {} guardado", snippetId);
 	}
 
 	// Se agotaron los intentos: el lint queda en FAILED, y el snippet queda
