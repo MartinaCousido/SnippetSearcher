@@ -527,6 +527,7 @@ docker compose up --build
 | Postgres `permisos` | `localhost:5434` |
 | Asset Service (Snippet Storage) | http://localhost:8082 (Swagger en http://localhost:8082/swagger-ui) |
 | Azurite (bucket) | Sin puerto: solo lo usa el Asset Service, por la red interna |
+| Redis (cola de mensajes) | `localhost:6379`. Lint y formateo en segundo plano; el puerto lo usan los tests |
 
 Los puertos de Postgres y del Asset Service solo se publican en `127.0.0.1`: no son accesibles desde otras máquinas de la red. Los archivos de los snippets quedan en el volumen `azurite-data` y sobreviven a cada reinicio.
 
@@ -544,11 +545,11 @@ Para bajar todo: `docker compose -f docker-compose.sistema.yml down`. Los datos 
 
 ### Correr los tests
 
-Los tests levantan el servicio completo, así que necesitan la base arriba y las variables de conexión. Corren contra una **base aparte, `snippets_test`**, en el mismo contenedor: antes de cada test se borran los datos, y así no se pierden los que usa el servicio levantado en `snippets`.
+Los tests levantan el servicio completo, así que necesitan la base y Redis arriba, y las variables de conexión. Corren contra una **base aparte, `snippets_test`**, en el mismo contenedor: antes de cada test se borran los datos, y así no se pierden los que usa el servicio levantado en `snippets`.
 
 Los tests no llaman a Auth0. Cada pedido arma su usuario con `jwt()` de `spring-security-test` (`security/TestUsers`), y Gradle les pasa valores de prueba para `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` y la app que lee usuarios, `AUTH0_USERS_CLIENT_ID` y `AUTH0_USERS_CLIENT_SECRET` (`build.gradle`). La Management API de Auth0 tampoco se llama: se simula con `MockRestServiceServer` (`users/Auth0UserDirectoryTests`).
 
-Con la base levantada (`docker compose up -d snippets-db`), crear la base de tests una sola vez:
+Con la base y Redis levantados (`docker compose up -d snippets-db redis`), crear la base de tests una sola vez:
 
 ```bash
 docker compose exec snippets-db createdb -U <usuario> snippets_test
