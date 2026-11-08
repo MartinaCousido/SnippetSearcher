@@ -1,10 +1,15 @@
 # Levanta el sistema completo: cada servicio con su propia base de datos.
 # Requiere los repos SnippetPermission y SnippetPrintScript clonados al lado de
 # este (../SnippetPermission y ../SnippetPrintScript), cada uno con su .env creado.
-# Uso: docker compose -f docker-compose.sistema.yml up --build
+# Uso:
+#   docker compose -f docker-compose.sistema.yml --env-file .env \
+#     --env-file ../SnippetPrintScript/.env up --build
 #
 # No repite la definición de los servicios: incluye el compose de cada repo.
-# Cada uno toma las variables del .env de su propio repo.
+# Cada uno toma las variables del .env de su propio repo. La excepción es el
+# PACKAGES_TOKEN de PrintScript: llega al build como secret, y Compose lo busca
+# en la terminal o en el .env del proyecto principal, no en el del repo
+# incluido. Por eso el comando pasa también ../SnippetPrintScript/.env.
 name: snippet-searcher
 
 include:

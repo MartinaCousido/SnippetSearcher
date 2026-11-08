@@ -505,8 +505,10 @@ Si se quiere cambiar la contraseña de la base, hay que hacerlo en el `.env` **a
 **Sistema completo** (Snippet Service, Permission Service y el servicio de PrintScript, con sus bases y el Snippet Storage). Requiere los repos [SnippetPermission](https://github.com/MartinaCousido/SnippetPermission) y [SnippetPrintScript](https://github.com/MartinaCousido/SnippetPrintScript) clonados al lado de este (`../SnippetPermission` y `../SnippetPrintScript`), cada uno con su propio `.env` creado. El de SnippetPrintScript lleva el token para bajar la librería (`PACKAGES_TOKEN`, ver su README):
 
 ```bash
-docker compose -f docker-compose.sistema.yml up --build
+docker compose -f docker-compose.sistema.yml --env-file .env --env-file ../SnippetPrintScript/.env up --build
 ```
+
+Los dos `--env-file` hacen falta para armar la imagen de PrintScript. Su `PACKAGES_TOKEN` llega al build como *secret*, y Docker Compose lo busca en la terminal o en el `.env` del proyecto principal (este repo), no en el `.env` de SnippetPrintScript. Sin ellos, GitHub Packages responde 401. Para los demás comandos (`down`, `ps`, `logs`) alcanza con `-f docker-compose.sistema.yml`.
 
 **Solo Snippet Service**, su base y el Snippet Storage (Asset Service + Azurite):
 
