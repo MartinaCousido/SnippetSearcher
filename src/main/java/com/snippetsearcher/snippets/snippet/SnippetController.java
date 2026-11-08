@@ -55,6 +55,12 @@ public class SnippetController {
 		service.delete(id);
 	}
 
+	// formatSnippet() de la UI: formatea con las reglas del owner, sin guardar.
+	@PostMapping("/{id}/format")
+	public FormatResponse format(@PathVariable UUID id, @Valid @RequestBody FormatRequest request) {
+		return service.format(id, request.content());
+	}
+
 	// listSnippetDescriptors() de la UI. relation no lo manda la UI de la
 	// cátedra: por defecto, propios y compartidos.
 	@GetMapping
