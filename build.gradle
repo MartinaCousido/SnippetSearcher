@@ -20,6 +20,8 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	// Redis Streams: lint y formateo en segundo plano (#23).
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'org.springframework.boot:spring-boot-starter-flyway'
 	implementation 'org.flywaydb:flyway-database-postgresql'
 	implementation 'org.springframework.boot:spring-boot-starter-restclient'
@@ -44,6 +46,17 @@ tasks.named('test') {
 	environment 'AUTH0_AUDIENCE', 'https://snippetsearcher-api'
 	environment 'AUTH0_USERS_CLIENT_ID', 'test'
 	environment 'AUTH0_USERS_CLIENT_SECRET', 'test'
+	// Los tests no procesan la cola en segundo plano, salvo los que lo prenden
+	// (analysis/): así no cambian el estado de un snippet mientras se prueba.
+	environment 'ANALYSIS_CONSUMER_ENABLED', 'false'
+	// Cada clase de test con mocks distintos levanta su propio contexto, y cada
+	// contexto abre conexiones a Postgres: con 10 por contexto (lo que trae
+	// Spring) se pasa del máximo de Postgres (100).
+	environment 'SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE', '2'
+	// Otra base de Redis que la del servicio levantado en local (la 0), igual
+	// que snippets_test en Postgres: si no, su consumidor se lleva los mensajes
+	// de los tests.
+	environment 'SPRING_DATA_REDIS_DATABASE', '1'
 }
 
 // Solo se genera el jar ejecutable de Spring Boot (bootJar), no el jar "plain":

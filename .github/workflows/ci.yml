@@ -14,7 +14,7 @@ concurrency:
 jobs:
   compilar-y-testear:
     runs-on: ubuntu-latest
-    # Los tests levantan el servicio completo, así que necesitan una base.
+    # Los tests levantan el servicio completo, así que necesitan una base y Redis.
     # Es una base descartable, solo para el CI: la contraseña no es un secreto.
     services:
       postgres:
@@ -27,6 +27,16 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U snippets -d snippets"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      # La cola de mensajes (Redis Streams), para los tests de analysis/.
+      redis:
+        image: redis:8.2
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10

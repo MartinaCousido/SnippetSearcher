@@ -28,8 +28,13 @@ services:
       # Módulo User: la app de Auth0 que lee usuarios. El secret va en el .env.
       AUTH0_USERS_CLIENT_ID: Z3S1LhEN5c6iXbSUxLVjPVAZSMgGX9U9
       AUTH0_USERS_CLIENT_SECRET: ${AUTH0_USERS_CLIENT_SECRET:?Falta AUTH0_USERS_CLIENT_SECRET, ver Cómo levantarlo en el README}
+      # Redis Streams: lint y formateo en segundo plano. Spring Boot lee esta
+      # variable solo.
+      SPRING_DATA_REDIS_HOST: redis
     depends_on:
       snippets-db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       asset-service:
         condition: service_healthy
@@ -71,6 +76,22 @@ services:
       timeout: 3s
       retries: 20
 
+  # Cola de mensajes (Redis Streams), igual que en el stack. appendonly guarda
+  # los mensajes en disco: los pendientes sobreviven a un reinicio.
+  redis:
+    image: redis:8.2
+    command: redis-server --appendonly yes
+    ports:
+      # Solo accesible desde esta máquina: lo usan los tests.
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # El bucket: emula Azure Blob Storage. Solo lo usa el Asset Service.
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite:3.37.0
@@ -81,3 +102,4 @@ services:
 volumes:
   snippets-data:
   azurite-data:
+  redis-data:
