@@ -3,6 +3,7 @@ package com.snippetsearcher.snippets.analysis;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,7 +40,6 @@ import com.snippetsearcher.snippets.users.UserDirectory;
 		"analysis.retry-interval=100"})
 class RedisAnalysisTests {
 
-	private static final UUID SALUDO = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
 	@Autowired
 	private SnippetRepository snippets;
@@ -62,16 +62,23 @@ class RedisAnalysisTests {
 	@MockitoBean
 	private UserDirectory users;
 
+	// Un snippet nuevo en cada test, con su propio código: así no se mezcla con
+	// los mensajes de otros snippets (por ejemplo, los que se analizan al
+	// arrancar el servicio).
+	private UUID snippet;
+	private String code;
+
 	@BeforeEach
 	void setUp() {
-		snippets.deleteAll();
-		snippets.save(new Snippet(SALUDO, "Saludo", "", "printscript", "1.1", SALUDO.toString(), TestUsers.ANA));
-		when(storage.get(anyString())).thenReturn(Optional.of("println(1);"));
+		snippet = UUID.randomUUID();
+		code = "println(\"" + snippet + "\");";
+		snippets.save(new Snippet(snippet, "Saludo", "", "printscript", "1.1", snippet.toString(), TestUsers.ANA));
+		when(storage.get(anyString())).thenReturn(Optional.of(code));
 		when(printScript.rules()).thenReturn(new RuleCatalog(List.of(), List.of()));
 	}
 
 	private Compliance compliance() {
-		return snippets.findById(SALUDO).orElseThrow().compliance();
+		return snippets.findById(snippet).orElseThrow().compliance();
 	}
 
 	private static void await(BooleanSupplier condition) throws InterruptedException {
@@ -86,20 +93,20 @@ class RedisAnalysisTests {
 	void theLintIsDoneInTheBackground() throws Exception {
 		when(printScript.lint(anyString(), anyString(), anyMap())).thenReturn(List.of());
 
-		requests.request(List.of(SALUDO), Set.of(AnalysisTask.LINT));
+		requests.request(List.of(snippet), Set.of(AnalysisTask.LINT));
 
 		await(() -> compliance() == Compliance.COMPLIANT);
 	}
 
 	@Test
 	void afterThreeFailedAttemptsTheSnippetIsFailedAndTheMessageIsConfirmed() throws Exception {
-		when(printScript.lint(anyString(), anyString(), anyMap())).thenThrow(new IllegalStateException("se cayó"));
+		when(printScript.lint(eq(code), anyString(), anyMap())).thenThrow(new IllegalStateException("se cayó"));
 
-		requests.request(List.of(SALUDO), Set.of(AnalysisTask.LINT));
+		requests.request(List.of(snippet), Set.of(AnalysisTask.LINT));
 
 		await(() -> compliance() == Compliance.FAILED);
 		await(() -> redis.opsForStream()
 				.pending(AnalysisTask.LINT.stream(), AnalysisConsumer.GROUP).getTotalPendingMessages() == 0);
-		verify(printScript, times(3)).lint(anyString(), anyString(), anyMap());
+		verify(printScript, times(3)).lint(eq(code), anyString(), anyMap());
 	}
 }
