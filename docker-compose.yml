@@ -25,6 +25,9 @@ services:
       # son los mismos que en el stack (ver Auth0 en Decisiones técnicas).
       AUTH0_DOMAIN: dev-eadjutr73y1lgdc5.us.auth0.com
       AUTH0_AUDIENCE: https://snippetsearcher-api
+      # Módulo User: la app de Auth0 que lee usuarios. El secret va en el .env.
+      AUTH0_USERS_CLIENT_ID: Z3S1LhEN5c6iXbSUxLVjPVAZSMgGX9U9
+      AUTH0_USERS_CLIENT_SECRET: ${AUTH0_USERS_CLIENT_SECRET:?Falta AUTH0_USERS_CLIENT_SECRET, ver Cómo levantarlo en el README}
     depends_on:
       snippets-db:
         condition: service_healthy

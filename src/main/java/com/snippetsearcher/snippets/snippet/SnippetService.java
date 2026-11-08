@@ -1,6 +1,7 @@
 package com.snippetsearcher.snippets.snippet;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -14,6 +15,7 @@ import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
 import com.snippetsearcher.snippets.language.LanguageCatalog;
 import com.snippetsearcher.snippets.security.CurrentUser;
+import com.snippetsearcher.snippets.users.UserDirectory;
 
 @Service
 public class SnippetService {
@@ -25,15 +27,18 @@ public class SnippetService {
 	private final SnippetRepository repository;
 	private final PermissionClient permissions;
 	private final CurrentUser currentUser;
+	private final UserDirectory users;
 	private final TransactionTemplate transaction;
 
 	public SnippetService(LanguageCatalog languages, SnippetStorage storage, SnippetRepository repository,
-			PermissionClient permissions, CurrentUser currentUser, TransactionTemplate transaction) {
+			PermissionClient permissions, CurrentUser currentUser, UserDirectory users,
+			TransactionTemplate transaction) {
 		this.languages = languages;
 		this.storage = storage;
 		this.repository = repository;
 		this.permissions = permissions;
 		this.currentUser = currentUser;
+		this.users = users;
 		this.transaction = transaction;
 	}
 
@@ -61,7 +66,7 @@ public class SnippetService {
 			});
 			return new SnippetResponse(id.toString(), snippet.name(), snippet.description(), snippet.language(),
 					snippet.version(), language.extension(), request.content(), snippet.compliance(),
-					snippet.author());
+					authorOf(snippet.author(), users.emails(List.of(snippet.author()))));
 		} catch (RuntimeException e) {
 			deleteQuietly(contentKey, e);
 			throw e;
@@ -77,7 +82,9 @@ public class SnippetService {
 		}
 		var found = repository.findByIdInAndNameContainingIgnoreCase(ids, name == null ? "" : name,
 				PageRequest.of(page, pageSize, Sort.by("name").ascending().and(Sort.by("id"))));
-		var snippets = found.getContent().stream().map(this::toResponse).toList();
+		// Los emails de los autores de la página, en un solo pedido a Auth0.
+		var emails = users.emails(found.getContent().stream().map(Snippet::author).toList());
+		var snippets = found.getContent().stream().map(snippet -> toResponse(snippet, emails)).toList();
 		return new SnippetPage(page, pageSize, found.getTotalElements(), snippets);
 	}
 
@@ -89,7 +96,7 @@ public class SnippetService {
 		if (access == null || !access.canRead()) {
 			throw new SnippetAccessDeniedException(id);
 		}
-		return toResponse(snippet);
+		return toResponse(snippet, users.emails(List.of(snippet.author())));
 	}
 
 	// Actualiza un snippet (US-2, US-4). Solo el owner. Se valida igual que al
@@ -125,7 +132,8 @@ public class SnippetService {
 			return saved;
 		});
 		return new SnippetResponse(id.toString(), updated.name(), updated.description(), updated.language(),
-				updated.version(), language.extension(), request.content(), updated.compliance(), updated.author());
+				updated.version(), language.extension(), request.content(), updated.compliance(),
+				authorOf(updated.author(), users.emails(List.of(updated.author()))));
 	}
 
 	// Borra un snippet. Solo el owner. La fila y el archivo se borran en una
@@ -153,11 +161,18 @@ public class SnippetService {
 
 	// El listado lleva el código de cada snippet, porque el Snippet de la UI lo
 	// tiene: se lee del Snippet Storage.
-	private SnippetResponse toResponse(Snippet snippet) {
+	private SnippetResponse toResponse(Snippet snippet, Map<String, String> emails) {
 		var extension = languages.resolve(snippet.language(), snippet.version()).extension();
 		var content = storage.get(snippet.contentKey()).orElse("");
 		return new SnippetResponse(snippet.id().toString(), snippet.name(), snippet.description(),
-				snippet.language(), snippet.version(), extension, content, snippet.compliance(), snippet.author());
+				snippet.language(), snippet.version(), extension, content, snippet.compliance(),
+				authorOf(snippet.author(), emails));
+	}
+
+	// La UI muestra el email del autor. En la base se guarda solo su id: el
+	// email se le pide a Auth0 (módulo User). Si no se consigue, el id.
+	private static String authorOf(String userId, Map<String, String> emails) {
+		return emails.getOrDefault(userId, userId);
 	}
 
 	// Un snippet sin código no se guarda: el Asset Service no acepta archivos

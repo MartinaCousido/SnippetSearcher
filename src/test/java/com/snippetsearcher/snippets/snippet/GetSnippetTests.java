@@ -23,6 +23,7 @@ import com.snippetsearcher.snippets.clients.Access;
 import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
 import com.snippetsearcher.snippets.security.TestUsers;
+import com.snippetsearcher.snippets.users.UserDirectory;
 
 // GET /snippets/{id} contra la base real. Permission Service y el Snippet
 // Storage se simulan.
@@ -44,6 +45,10 @@ class GetSnippetTests {
 
 	@MockitoBean
 	private PermissionClient permissions;
+
+	// Auth0 (módulo User): sin email, el autor se muestra con su id.
+	@MockitoBean
+	private UserDirectory users;
 
 	@BeforeEach
 	void setUp() {

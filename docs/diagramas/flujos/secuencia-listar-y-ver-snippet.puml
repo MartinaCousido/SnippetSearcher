@@ -1,5 +1,6 @@
 @startuml secuencia-listar-y-ver-snippet
 ' Listar los snippets (US-5) y ver uno (US-6). Implementado en #35 y #37.
+' El email del autor sale de Auth0 (módulo User, #57).
 
 title Listar snippets (US-5) y ver un snippet (US-6)
 autonumber
@@ -11,6 +12,7 @@ participant "Snippet Service" as S
 participant "Permission Service" as P
 database "Postgres\n(snippets)" as DB
 participant "Asset Service\n(Snippet Storage)" as ST
+participant "Auth0\n(Management API)" as A
 
 == Listar (US-5) ==
 Usuario -> UI : abre la pantalla principal\no busca por nombre
@@ -26,7 +28,10 @@ else tiene snippets
     S -> ST : GET /v1/asset/snippets/{id}
     ST --> S : código
   end
-  S --> UI : 200 { page, page_size, count, snippets }
+  S -> A : GET /api/v2/users?q=user_id:(…)\n(solo los autores que no recuerda)
+  A --> S : email de cada autor
+  note right of S : si Auth0 no responde,\nel autor se muestra con su id
+  S --> UI : 200 { page, page_size, count, snippets }\n(author = email)
 end
 UI --> Usuario : muestra la tabla
 
@@ -44,6 +49,8 @@ else existe
   else canRead = true
     S -> ST : GET /v1/asset/snippets/{id}
     ST --> S : código
+    S -> A : email del autor\n(si no lo recuerda)
+    A --> S : email
     S --> UI : 200 Snippet
     UI --> Usuario : muestra nombre, lenguaje y código
   end
