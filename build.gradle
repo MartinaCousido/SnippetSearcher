@@ -17,7 +17,26 @@ repositories {
 	mavenCentral()
 }
 
+// Agente Java de New Relic (#81): Gradle lo baja, pero no entra al classpath;
+// el Dockerfile lo engancha con -javaagent. Igual que el Asset Service de la
+// cátedra. Ver Observabilidad (New Relic) en Decisiones técnicas.
+ext {
+	set('newRelicVersion', '9.5.0')
+}
+
+configurations {
+	newrelic {
+		canBeConsumed = false
+		canBeResolved = true
+		transitive = false
+	}
+}
+
 dependencies {
+	newrelic "com.newrelic.agent.java:newrelic-agent:${newRelicVersion}"
+	// La API del agente, para mandar eventos propios (la saturación de Redis).
+	// Sin el agente, sus llamadas no hacen nada.
+	implementation "com.newrelic.agent.java:newrelic-api:${newRelicVersion}"
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	// Redis Streams: lint y formateo en segundo plano (#23).
@@ -57,6 +76,18 @@ tasks.named('test') {
 	// que snippets_test en Postgres: si no, su consumidor se lleva los mensajes
 	// de los tests.
 	environment 'SPRING_DATA_REDIS_DATABASE', '1'
+}
+
+// Deja el agente (build/newrelic/newrelic.jar) junto a su configuración
+// (newrelic.yml, que el agente lee de su misma carpeta).
+tasks.register('copyNewRelic', Sync) {
+	from(configurations.newrelic) {
+		rename { 'newrelic.jar' }
+	}
+	from('newrelic') {
+		include 'newrelic.yml'
+	}
+	into layout.buildDirectory.dir('newrelic')
 }
 
 // Solo se genera el jar ejecutable de Spring Boot (bootJar), no el jar "plain":

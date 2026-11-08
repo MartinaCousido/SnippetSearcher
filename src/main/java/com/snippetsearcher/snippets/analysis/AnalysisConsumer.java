@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -21,6 +22,8 @@ import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer.StreamMessageListenerContainerOptions;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import com.snippetsearcher.snippets.observability.LogContext;
 
 import jakarta.annotation.PreDestroy;
 
@@ -109,12 +112,18 @@ public class AnalysisConsumer {
 	}
 
 	private void handle(AnalysisTask task, MapRecord<String, ?, ?> record) {
+		// Las líneas de este mensaje llevan el snippet y el servicio en el contexto.
+		MDC.put(LogContext.SERVICE, LogContext.SERVICE_NAME);
+		MDC.put(LogContext.SNIPPET_ID, String.valueOf(record.getValue().get(RedisAnalysisQueue.SNIPPET_ID)));
 		try {
 			worker.process(task, snippetId(record), revision(record));
 			redis.opsForStream().acknowledge(task.stream(), GROUP, record.getId());
 		} catch (RuntimeException e) {
 			// Sin XACK: queda pendiente y se reintenta.
 			log.warn("Falló {} del snippet {}; se va a reintentar", task, record.getValue(), e);
+		} finally {
+			MDC.remove(LogContext.SERVICE);
+			MDC.remove(LogContext.SNIPPET_ID);
 		}
 	}
 

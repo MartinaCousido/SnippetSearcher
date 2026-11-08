@@ -84,6 +84,7 @@ public class TestCaseService {
 		var language = languages.resolve(snippet.language(), snippet.version());
 		var code = storage.get(snippet.contentKey()).orElse("");
 		var result = runner.run(language, code, request.inputs(), request.outputs());
+		log.info("test corrido en el snippet {}: {}", snippetId, result.value());
 		if (saved != null && saved.inputs().equals(request.inputs()) && saved.outputs().equals(request.outputs())) {
 			saved.recordResult(result);
 		}

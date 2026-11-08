@@ -6,6 +6,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,8 @@ import com.snippetsearcher.snippets.security.CurrentUser;
 // defecto y validación" en Decisiones técnicas.
 @Service
 public class RuleService {
+
+	private static final Logger log = LoggerFactory.getLogger(RuleService.class);
 
 	private final UserRuleRepository repository;
 	private final AnalysisRequests analysis;
@@ -64,6 +68,7 @@ public class RuleService {
 		repository.flush();
 		current.values().forEach(rule -> repository.save(new UserRule(userId, kind, rule.name(), rule.isActive(),
 				rule.value() == null ? null : rule.value().toString())));
+		log.info("reglas de {} guardadas", kind.value());
 		// Los snippets del usuario se vuelven a lintear o formatear con las
 		// reglas nuevas, en segundo plano (US-12, US-15).
 		analysis.requestForAuthor(userId, kind == RuleKind.LINT ? AnalysisTask.LINT : AnalysisTask.FORMAT);

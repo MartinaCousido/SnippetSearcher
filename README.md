@@ -325,6 +325,7 @@ La UI tiene una sola variable, `BACKEND_URL`, y los tests de Cypress de la cáte
 | Ruta que pide la UI | Va a |
 |---|---|
 | `/api/snippets…`, `/api/rules…`, `/api/languages`, `/api/users` | Snippet Service |
+| `GET /api/health` (público, sin token) | Snippet Service: `UP` (200) o `DOWN` (503) si no responde la base, Redis, Permission, PrintScript o el Asset Service. Sin detalles: lo usan los synthetics de New Relic. Qué falló queda en el log |
 | `POST /api/permissions/{id}/share` | Permission Service |
 
 - El proxy **saca el `/api`**: los servicios exponen `/snippets`, `/permissions`, etc., sin prefijo. Así su código no depende de cómo se publiquen.
@@ -544,6 +545,14 @@ Para comprobar que un servicio está arriba y conectado a su base: http://localh
 cd ../SnippetSearcher-infra/auth0
 export TOKEN=$(npm run --silent token)   # abre el login: entrar con ana@example.com
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/snippets
+```
+
+**New Relic.** En local, el agente viene apagado. Para mandar datos a New Relic (por ejemplo, para probar un cambio en los logs), se pasa la license key al levantar, y el servicio aparece como `snippet-service (local)`:
+
+```bash
+export NEW_RELIC_AGENT_ENABLED=true
+export NEW_RELIC_LICENSE_KEY=$(grep '^NEW_RELIC_LICENSE_KEY=' ../SnippetSearcher-infra/newrelic/.env | cut -d= -f2-)
+docker compose -f docker-compose.sistema.yml --env-file .env --env-file ../SnippetPrintScript/.env up --build
 ```
 
 Para bajar todo: `docker compose -f docker-compose.sistema.yml down`. Los datos quedan en volúmenes de Docker; para borrarlos también, agregar `-v`.
