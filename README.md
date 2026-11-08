@@ -10,6 +10,7 @@ Trabajo práctico de Ingeniería de Sistemas, Universidad Austral (2026).
 |---|---|
 | [Consigna](docs/Snippet%20Searcher%20-%20Consigna%20%281%29.pdf) | Descripción del TP, casos de uso generales y primer entregable |
 | [Casos de uso (User Stories)](docs/Snippet%20Searcher%20-%20Casos%20de%20uso.pdf) | Las 16 user stories con sus notas y criterios |
+| [Observabilidad](docs/08-observabilidad.pdf) | Clase de New Relic: logs, métricas, traces, synthetics, SLI/SLO y alertas |
 
 ## Casos de uso generales
 
