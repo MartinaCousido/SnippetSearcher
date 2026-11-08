@@ -37,6 +37,11 @@ public class SnippetErrors {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
 	}
 
+	@ExceptionHandler(FormattedVersionNotFoundException.class)
+	public ProblemDetail noFormattedVersion(FormattedVersionNotFoundException e) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
+	}
+
 	@ExceptionHandler(SnippetAccessDeniedException.class)
 	public ProblemDetail accessDenied(SnippetAccessDeniedException e) {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, e.getMessage());
