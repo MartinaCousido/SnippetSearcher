@@ -93,8 +93,10 @@ class SecurityTests {
 
 		mvc.perform(get("/languages").with(lector)).andExpect(status().isOk());
 		// Correr un test y formatear no guardan nada: alcanza con leer. Pasan la
-		// seguridad; la respuesta es la del endpoint (que todavía no existe).
-		mvc.perform(post("/snippets/{id}/tests/run", UUID.randomUUID()).with(lector))
+		// seguridad; la respuesta es la del endpoint: el snippet no existe, o el
+		// endpoint todavía no existe (formatear).
+		mvc.perform(post("/snippets/{id}/tests/run", UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
+						.content("{}").with(lector))
 				.andExpect(status().isNotFound());
 		mvc.perform(post("/snippets/{id}/format", UUID.randomUUID()).with(lector))
 				.andExpect(status().isNotFound());
