@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.snippetsearcher.snippets.analysis.AnalysisRequests;
+import com.snippetsearcher.snippets.analysis.AnalysisTask;
 import com.snippetsearcher.snippets.clients.Language.CatalogRule;
 import com.snippetsearcher.snippets.language.LanguageCatalog;
 import com.snippetsearcher.snippets.security.CurrentUser;
@@ -22,13 +24,15 @@ import com.snippetsearcher.snippets.security.CurrentUser;
 public class RuleService {
 
 	private final UserRuleRepository repository;
+	private final AnalysisRequests analysis;
 	private final LanguageCatalog languages;
 	private final CurrentUser currentUser;
 	private final String language;
 
-	public RuleService(UserRuleRepository repository, LanguageCatalog languages, CurrentUser currentUser,
-			@Value("${rules.language}") String language) {
+	public RuleService(UserRuleRepository repository, AnalysisRequests analysis, LanguageCatalog languages,
+			CurrentUser currentUser, @Value("${rules.language}") String language) {
 		this.repository = repository;
+		this.analysis = analysis;
 		this.languages = languages;
 		this.currentUser = currentUser;
 		this.language = language;
@@ -60,6 +64,9 @@ public class RuleService {
 		repository.flush();
 		current.values().forEach(rule -> repository.save(new UserRule(userId, kind, rule.name(), rule.isActive(),
 				rule.value() == null ? null : rule.value().toString())));
+		// Los snippets del usuario se vuelven a lintear o formatear con las
+		// reglas nuevas, en segundo plano (US-12, US-15).
+		analysis.requestForAuthor(userId, kind == RuleKind.LINT ? AnalysisTask.LINT : AnalysisTask.FORMAT);
 		return List.copyOf(current.values());
 	}
 

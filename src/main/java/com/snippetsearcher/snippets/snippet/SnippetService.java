@@ -11,6 +11,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.snippetsearcher.snippets.analysis.AnalysisRequests;
+import com.snippetsearcher.snippets.analysis.AnalysisTask;
 import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
 import com.snippetsearcher.snippets.language.LanguageCatalog;
@@ -33,11 +35,12 @@ public class SnippetService {
 	private final UserDirectory users;
 	private final TestCaseService testCases;
 	private final RuleService rules;
+	private final AnalysisRequests analysis;
 	private final TransactionTemplate transaction;
 
 	public SnippetService(LanguageCatalog languages, SnippetStorage storage, SnippetRepository repository,
 			PermissionClient permissions, CurrentUser currentUser, UserDirectory users, TestCaseService testCases,
-			RuleService rules, TransactionTemplate transaction) {
+			RuleService rules, AnalysisRequests analysis, TransactionTemplate transaction) {
 		this.languages = languages;
 		this.storage = storage;
 		this.repository = repository;
@@ -46,6 +49,7 @@ public class SnippetService {
 		this.users = users;
 		this.testCases = testCases;
 		this.rules = rules;
+		this.analysis = analysis;
 		this.transaction = transaction;
 	}
 
@@ -71,9 +75,12 @@ public class SnippetService {
 				permissions.registerOwner(id);
 				return saved;
 			});
+			// Se lintea y se formatea en segundo plano (US-12, US-15): por ahora,
+			// pending.
+			requestAnalysis(id);
 			return new SnippetResponse(id.toString(), snippet.name(), snippet.description(), snippet.language(),
 					snippet.version(), language.extension(), request.content(), snippet.compliance(),
-					authorOf(snippet.author(), users.emails(List.of(snippet.author()))));
+					authorOf(snippet.author(), users.emails(List.of(snippet.author()))), List.of());
 		} catch (RuntimeException e) {
 			deleteQuietly(contentKey, e);
 			throw e;
@@ -139,10 +146,11 @@ public class SnippetService {
 			storage.put(snippet.contentKey(), request.content());
 			return saved;
 		});
+		requestAnalysis(id);
 		runTests(updated, request.content());
 		return new SnippetResponse(id.toString(), updated.name(), updated.description(), updated.language(),
-				updated.version(), language.extension(), request.content(), updated.compliance(),
-				authorOf(updated.author(), users.emails(List.of(updated.author()))));
+				updated.version(), language.extension(), request.content(), Compliance.PENDING,
+				authorOf(updated.author(), users.emails(List.of(updated.author()))), List.of());
 	}
 
 	// Formatea el código del editor con las reglas de formateo del owner (US-11),
@@ -162,6 +170,16 @@ public class SnippetService {
 			throw new InvalidSnippetException(formatted.diagnostics());
 		}
 		return new FormatResponse(formatted.content());
+	}
+
+	// Pide lintear y formatear el snippet en segundo plano. Si falla, el
+	// snippet ya está guardado: queda en pending y se registra.
+	private void requestAnalysis(UUID id) {
+		try {
+			analysis.request(List.of(id), java.util.EnumSet.allOf(AnalysisTask.class));
+		} catch (RuntimeException e) {
+			log.warn("No se pudo pedir el lint y el formateo del snippet {}", id, e);
+		}
 	}
 
 	// Testing automático (US-16): con el cambio ya guardado, corre todos los
@@ -191,6 +209,10 @@ public class SnippetService {
 			repository.delete(snippet);
 			repository.flush();
 			storage.delete(snippet.contentKey());
+			// La versión formateada también, si había.
+			if (snippet.formattedKey() != null) {
+				storage.delete(snippet.formattedKey());
+			}
 		});
 		try {
 			permissions.deleteAll(id);
@@ -206,7 +228,7 @@ public class SnippetService {
 		var content = storage.get(snippet.contentKey()).orElse("");
 		return new SnippetResponse(snippet.id().toString(), snippet.name(), snippet.description(),
 				snippet.language(), snippet.version(), extension, content, snippet.compliance(),
-				authorOf(snippet.author(), emails));
+				authorOf(snippet.author(), emails), snippet.lintViolations());
 	}
 
 	// La UI muestra el email del autor. En la base se guarda solo su id: el
