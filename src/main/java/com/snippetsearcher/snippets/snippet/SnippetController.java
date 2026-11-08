@@ -1,5 +1,6 @@
 package com.snippetsearcher.snippets.snippet;
 
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 import jakarta.validation.Valid;
@@ -7,7 +8,11 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -53,6 +58,19 @@ public class SnippetController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void delete(@PathVariable UUID id) {
 		service.delete(id);
+	}
+
+	// downloadSnippet() de la UI (US-13): el archivo original o el formateado,
+	// como descarga.
+	@GetMapping("/{id}/download")
+	public ResponseEntity<String> download(@PathVariable UUID id,
+			@RequestParam(defaultValue = "false") boolean formatted) {
+		var file = service.download(id, formatted);
+		return ResponseEntity.ok()
+				.contentType(new MediaType(MediaType.TEXT_PLAIN, StandardCharsets.UTF_8))
+				.header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+						.filename(file.filename(), StandardCharsets.UTF_8).build().toString())
+				.body(file.content());
 	}
 
 	// formatSnippet() de la UI: formatea con las reglas del owner, sin guardar.

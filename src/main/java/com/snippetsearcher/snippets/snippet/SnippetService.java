@@ -153,6 +153,27 @@ public class SnippetService {
 				authorOf(updated.author(), users.emails(List.of(updated.author()))), List.of());
 	}
 
+	// Descarga un snippet (US-13): el código original, o la versión formateada
+	// que guardó el formateo en segundo plano (#23). La descargan el owner y
+	// los usuarios con acceso compartido.
+	public SnippetFile download(UUID id, boolean formatted) {
+		var snippet = repository.findById(id).orElseThrow(() -> new SnippetNotFoundException(id));
+		var access = permissions.access(id);
+		if (access == null || !access.canRead()) {
+			throw new SnippetAccessDeniedException(id);
+		}
+		var extension = languages.resolve(snippet.language(), snippet.version()).extension();
+		if (!formatted) {
+			return new SnippetFile(snippet.name() + "." + extension,
+					storage.get(snippet.contentKey()).orElse(""));
+		}
+		if (snippet.formattedKey() == null) {
+			throw new FormattedVersionNotFoundException(id);
+		}
+		var content = storage.get(snippet.formattedKey()).orElseThrow(() -> new FormattedVersionNotFoundException(id));
+		return new SnippetFile(snippet.name() + "-formateado." + extension, content);
+	}
+
 	// Formatea el código del editor con las reglas de formateo del owner (US-11),
 	// sin guardar nada. Lo pueden usar el owner y los usuarios con acceso
 	// compartido: un snippet se formatea siempre con las reglas de su owner.
