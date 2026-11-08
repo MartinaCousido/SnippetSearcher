@@ -15,6 +15,7 @@ import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
 import com.snippetsearcher.snippets.language.LanguageCatalog;
 import com.snippetsearcher.snippets.security.CurrentUser;
+import com.snippetsearcher.snippets.testcase.TestCaseService;
 import com.snippetsearcher.snippets.users.UserDirectory;
 
 @Service
@@ -28,10 +29,11 @@ public class SnippetService {
 	private final PermissionClient permissions;
 	private final CurrentUser currentUser;
 	private final UserDirectory users;
+	private final TestCaseService testCases;
 	private final TransactionTemplate transaction;
 
 	public SnippetService(LanguageCatalog languages, SnippetStorage storage, SnippetRepository repository,
-			PermissionClient permissions, CurrentUser currentUser, UserDirectory users,
+			PermissionClient permissions, CurrentUser currentUser, UserDirectory users, TestCaseService testCases,
 			TransactionTemplate transaction) {
 		this.languages = languages;
 		this.storage = storage;
@@ -39,6 +41,7 @@ public class SnippetService {
 		this.permissions = permissions;
 		this.currentUser = currentUser;
 		this.users = users;
+		this.testCases = testCases;
 		this.transaction = transaction;
 	}
 
@@ -102,6 +105,7 @@ public class SnippetService {
 	// Actualiza un snippet (US-2, US-4). Solo el owner. Se valida igual que al
 	// crear, con el lenguaje y la versión nuevos si cambian: si el código no es
 	// válido, no se cambia nada. El archivo se pisa con la misma clave.
+	// Después corren los tests del snippet (US-16).
 	public SnippetResponse update(UUID id, UpdateSnippetRequest request) {
 		var snippet = repository.findById(id).orElseThrow(() -> new SnippetNotFoundException(id));
 		var access = permissions.access(id);
@@ -131,9 +135,22 @@ public class SnippetService {
 			storage.put(snippet.contentKey(), request.content());
 			return saved;
 		});
+		runTests(updated, request.content());
 		return new SnippetResponse(id.toString(), updated.name(), updated.description(), updated.language(),
 				updated.version(), language.extension(), request.content(), updated.compliance(),
 				authorOf(updated.author(), users.emails(List.of(updated.author()))));
+	}
+
+	// Testing automático (US-16): con el cambio ya guardado, corre todos los
+	// tests del snippet y guarda sus resultados. Como pide la US-16, el
+	// resultado no bloquea ni revierte el update: si algo falla, solo se
+	// registra.
+	private void runTests(Snippet snippet, String code) {
+		try {
+			testCases.runAll(snippet, code);
+		} catch (RuntimeException e) {
+			log.warn("No se pudieron correr los tests del snippet {}, que ya se actualizó", snippet.id(), e);
+		}
 	}
 
 	// Borra un snippet. Solo el owner. La fila y el archivo se borran en una

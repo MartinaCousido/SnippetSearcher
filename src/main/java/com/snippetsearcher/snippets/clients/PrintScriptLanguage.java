@@ -28,7 +28,30 @@ public class PrintScriptLanguage implements Language {
 		return response == null ? List.of() : response.diagnostics();
 	}
 
+	@Override
+	public Evaluation evaluate(String code, String version, List<String> inputs) {
+		var response = client.post()
+				.uri("/evaluate")
+				.body(new EvaluateRequest(code, version, inputs))
+				.retrieve()
+				.body(EvaluateResponse.class);
+		if (response == null) {
+			return new Evaluation(List.of(), List.of());
+		}
+		return new Evaluation(nullToEmpty(response.outputs()), nullToEmpty(response.diagnostics()));
+	}
+
+	private static <T> List<T> nullToEmpty(List<T> list) {
+		return list == null ? List.of() : list;
+	}
+
 	private record ValidateRequest(String code, String version) {
+	}
+
+	private record EvaluateRequest(String code, String version, List<String> inputs) {
+	}
+
+	private record EvaluateResponse(List<String> outputs, List<Diagnostic> diagnostics) {
 	}
 
 	private record ValidateResponse(List<Diagnostic> diagnostics) {
