@@ -2,8 +2,10 @@ package com.snippetsearcher.snippets.snippet;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -11,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -25,6 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
 import com.snippetsearcher.snippets.security.TestUsers;
+import com.snippetsearcher.snippets.users.UserDirectory;
 
 // GET /snippets contra la base real. Permission Service y el Snippet Storage
 // se simulan.
@@ -49,6 +53,10 @@ class ListSnippetsTests {
 	@MockitoBean
 	private PermissionClient permissions;
 
+	// Auth0 (módulo User): sin email, el autor se muestra con su id.
+	@MockitoBean
+	private UserDirectory users;
+
 	@BeforeEach
 	void setUp() {
 		repository.deleteAll();
@@ -64,6 +72,19 @@ class ListSnippetsTests {
 
 	private void save(UUID id, String name, String author) {
 		repository.save(new Snippet(id, name, "", "printscript", "1.1", id.toString(), author));
+	}
+
+	// El autor se muestra con su email, que se le pide a Auth0 una sola vez por
+	// página. Si no está, con su id.
+	@Test
+	void showsTheEmailOfTheAuthor() throws Exception {
+		when(users.emails(anyCollection())).thenReturn(Map.of("auth0|otro", "otro@example.com"));
+
+		mvc.perform(get("/snippets").with(TestUsers.ana()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.snippets[1].author").value("otro@example.com"))
+				.andExpect(jsonPath("$.snippets[2].author").value(TestUsers.ANA));
+		verify(users, times(1)).emails(anyCollection());
 	}
 
 	@Test

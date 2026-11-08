@@ -42,6 +42,8 @@ tasks.named('test') {
 	// Auth0: arman el usuario con jwt() de spring-security-test.
 	environment 'AUTH0_DOMAIN', 'test.invalid'
 	environment 'AUTH0_AUDIENCE', 'https://snippetsearcher-api'
+	environment 'AUTH0_USERS_CLIENT_ID', 'test'
+	environment 'AUTH0_USERS_CLIENT_SECRET', 'test'
 }
 
 // Solo se genera el jar ejecutable de Spring Boot (bootJar), no el jar "plain":

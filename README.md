@@ -323,7 +323,7 @@ La UI tiene una sola variable, `BACKEND_URL`, y los tests de Cypress de la cáte
 
 | Ruta que pide la UI | Va a |
 |---|---|
-| `/api/snippets…`, `/api/rules…`, `/api/languages` | Snippet Service |
+| `/api/snippets…`, `/api/rules…`, `/api/languages`, `/api/users` | Snippet Service |
 | `POST /api/permissions/{id}/share` | Permission Service |
 
 - El proxy **saca el `/api`**: los servicios exponen `/snippets`, `/permissions`, etc., sin prefijo. Así su código no depende de cómo se publiquen.
@@ -375,7 +375,7 @@ CORS es la regla del navegador que decide si una página puede llamar a una API 
 | `postTestCase(snippetId, test)` | `POST /snippets/{id}/tests` | `TestCase`. Solo el owner |
 | `removeTestCase(snippetId, testId)` | `DELETE /snippets/{id}/tests/{testId}` | 204. Solo el owner |
 | `testSnippet(snippetId, test)` | `POST /snippets/{id}/tests/run` con `{ input, output }` | `{ result: "success" \| "fail" }` |
-| `getUserFriends(name, page, pageSize)` | — | Sigue con datos falsos hasta que esté el módulo User (#57) |
+| `getUserFriends(name, page, pageSize)` | `GET /users?name=&page=&page_size=` | `{ page, page_size, count, users: [{ id, name }] }`: `id` es el `sub` (el que se manda al compartir) y `name` es el email. `name` filtra por el comienzo del email, sin distinguir mayúsculas; sin `name`, lista a todos. Nunca incluye a quien pide. `page` empieza en 0 y `page_size` va de 1 a 100. Los usuarios se buscan en Auth0 (módulo User). 502 si Auth0 no responde |
 
 Todos los pedidos llevan el token de Auth0 (`Authorization: Bearer …`).
 
@@ -394,7 +394,7 @@ TestCase = { id, name, input: string[], output: string[] }
 ```
 
 - `compliance` usa los valores de la UI: `pending`, `failed`, `not-compliant`, `compliant`.
-- `author` es el `userId` de Auth0 del owner (el `sub` del token, por ejemplo `auth0|abc123`). Snippet Service lo guarda al crear el snippet (ver Decisiones técnicas). Cuando esté el módulo User (#57), el listado va a mostrar el email del autor, que se le pide a Auth0: no se guarda en nuestra base.
+- `author` es el **email** del owner. En la base se guarda solo su `userId` (el `sub` del token, por ejemplo `auth0|abc123`), y el email se le pide a Auth0 (módulo User): un pedido por página del listado, y se recuerda 10 minutos. Si Auth0 no lo devuelve (por ejemplo, el usuario viejo `dev-user`) o no responde, `author` es el `userId`.
 - `description` y `version` no los manda la UI de la cátedra: son opcionales al crear. La versión toma la `default-version` del lenguaje: para PrintScript es **`1.1`**.
 - `Diagnostic` es el formato de [Decisiones técnicas](#decisiones-técnicas): `{ rule, message, range: { start: { line, column }, end: { line, column } } }`.
 
@@ -437,7 +437,7 @@ Fuente de verdad sobre qué está decidido. Lo que figura como **Pendiente** no 
 | Id de los snippets | ✅ Definido | **UUID**, generado por Snippet Service. No deja adivinar los ids de otros usuarios, y es el formato que usa la UI. Es también la clave del archivo en el Snippet Storage |
 | Interfaz `Language` | ✅ Definido | Cuatro operaciones: `validate` (revisa sintaxis y semántica sin ejecutar), `lint`, `format` y `evaluate` (ejecutar). Reciben **el código**, nunca el id del snippet: así se puede validar antes de guardar, y los servicios de lenguaje no conocen el Snippet Storage. `validate` y `lint` devuelven una lista de `Diagnostic`. Ver [Módulos](#módulos) |
 | `Diagnostic` | ✅ Definido | Un problema en el código, igual para todos los lenguajes. Tiene **el nombre de la regla incumplida** (lo pide la US-1), un mensaje y un `Range`: línea y columna de inicio y de fin. Cada servicio de lenguaje traduce los errores de su librería a este formato. En PrintScript, el nombre de la regla sale del **código de regla** de la librería (desde `0.3.0`): `Failure.code()` en los errores y `Violation.rule()` en el lint; no se deduce del texto del mensaje, porque cambiaría sin aviso si cambia el mensaje |
-| Organización del código | ✅ Definido | **Paquetes por tema**, no por tipo. Snippet Service: `snippet/`, `testcase/`, `rules/`, `clients/`, `language/` (lenguajes soportados y sus versiones) y `security/` (quién es el usuario). Permission Service: `permission/`, `security/`. La arquitectura de servicios no cambia |
+| Organización del código | ✅ Definido | **Paquetes por tema**, no por tipo. Snippet Service: `snippet/`, `testcase/`, `rules/`, `clients/`, `language/` (lenguajes soportados y sus versiones), `security/` (quién es el usuario) y `users/` (módulo User: los usuarios de Auth0). Permission Service: `permission/`, `security/`. La arquitectura de servicios no cambia |
 | Reglas de lint y formateo | ✅ Definido | **Cada usuario tiene su configuración.** Un snippet se lintea y se formatea con las reglas de su owner. Un usuario con quien se compartió ve ese mismo resultado, así que cada snippet tiene un solo estado de lint |
 | Versión formateada (US-13) | ✅ Definido | **Se guarda.** El formateo en segundo plano (US-12) guarda el resultado como un segundo archivo en el Snippet Storage; el original no se toca. La descarga lee uno o el otro |
 | Auth0 | ✅ Definido | Decidido el 2026-11-07, sobre la demo de la cátedra ([austral-ingsis/auth0-integration](https://github.com/austral-ingsis/auth0-integration)). Se implementa en #55. **Un solo tenant para dev y prod**: así la UI sigue siendo una sola imagen para los dos ambientes. **API** con identificador (`audience`) **`https://snippetsearcher-api`**: es solo un nombre, no una página. La **UI es una aplicación SPA** de Auth0 (corre entera en el navegador), con las direcciones de local, dev y prod. Los recursos de Auth0 se crean **con Pulumi**, como código, en `SnippetSearcher-infra/auth0/` ([SnippetSearcher-infra#33](https://github.com/MartinaCousido/SnippetSearcher-infra/issues/33)). Snippet Service y Permission Service validan el token con Spring Security (*resource server*): la firma, `iss`, `aud` y `exp`, sin llamar a Auth0 en cada pedido. **El usuario es el `sub` del token**: una sola clase de cada servicio lo lee (`security/CurrentUser`). Snippet Service le reenvía el token del usuario a Permission Service. Reemplaza al usuario fijo `dev-user` que se usó mientras no estaba Auth0; los snippets viejos de la VM de dev, con owner `dev-user`, quedan como registro |
@@ -527,7 +527,7 @@ Los puertos de Postgres y del Asset Service solo se publican en `127.0.0.1`: no 
 
 Para comprobar que un servicio está arriba y conectado a su base: http://localhost:8080/actuator/health (o `8081`) tiene que responder `"status":"UP"`, con `db` también en `UP`. El health no pide token.
 
-**Auth0.** El resto de los endpoints pide el token de Auth0: sin token responden 401, y sin el permiso de la operación, 403 (ver [Roles](#roles)). `AUTH0_DOMAIN` y `AUTH0_AUDIENCE` ya están en el `docker-compose.yml`: no son secretos y no van en el `.env`. Sin ellas, el servicio no arranca. Para llamar a la API con `curl`, se consigue un token desde [SnippetSearcher-infra](https://github.com/MartinaCousido/SnippetSearcher-infra#auth0):
+**Auth0.** El resto de los endpoints pide el token de Auth0: sin token responden 401, y sin el permiso de la operación, 403 (ver [Roles](#roles)). `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` y `AUTH0_USERS_CLIENT_ID` ya están en el `docker-compose.yml`: no son secretos y no van en el `.env`. El que sí va en el `.env` es `AUTH0_USERS_CLIENT_SECRET`, el secret de la app que lee usuarios: se saca de Pulumi (ver [`.env.example`](.env.example)). Sin estas variables, el servicio no arranca. Para llamar a la API con `curl`, se consigue un token desde [SnippetSearcher-infra](https://github.com/MartinaCousido/SnippetSearcher-infra#auth0):
 
 ```bash
 cd ../SnippetSearcher-infra/auth0
@@ -541,7 +541,7 @@ Para bajar todo: `docker compose -f docker-compose.sistema.yml down`. Los datos 
 
 Los tests levantan el servicio completo, así que necesitan la base arriba y las variables de conexión. Corren contra una **base aparte, `snippets_test`**, en el mismo contenedor: antes de cada test se borran los datos, y así no se pierden los que usa el servicio levantado en `snippets`.
 
-Los tests no llaman a Auth0. Cada pedido arma su usuario con `jwt()` de `spring-security-test` (`security/TestUsers`), y Gradle les pasa valores de prueba para `AUTH0_DOMAIN` y `AUTH0_AUDIENCE` (`build.gradle`).
+Los tests no llaman a Auth0. Cada pedido arma su usuario con `jwt()` de `spring-security-test` (`security/TestUsers`), y Gradle les pasa valores de prueba para `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` y la app que lee usuarios, `AUTH0_USERS_CLIENT_ID` y `AUTH0_USERS_CLIENT_SECRET` (`build.gradle`). La Management API de Auth0 tampoco se llama: se simula con `MockRestServiceServer` (`users/Auth0UserDirectoryTests`).
 
 Con la base levantada (`docker compose up -d snippets-db`), crear la base de tests una sola vez:
 
