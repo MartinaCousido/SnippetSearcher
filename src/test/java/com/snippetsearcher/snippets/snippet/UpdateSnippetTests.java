@@ -2,6 +2,7 @@ package com.snippetsearcher.snippets.snippet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -32,9 +33,13 @@ import com.snippetsearcher.snippets.clients.Diagnostic;
 import com.snippetsearcher.snippets.clients.Diagnostic.Position;
 import com.snippetsearcher.snippets.clients.Diagnostic.Range;
 import com.snippetsearcher.snippets.clients.Language;
+import com.snippetsearcher.snippets.clients.Language.Evaluation;
 import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
 import com.snippetsearcher.snippets.security.TestUsers;
+import com.snippetsearcher.snippets.testcase.TestCase;
+import com.snippetsearcher.snippets.testcase.TestCaseRepository;
+import com.snippetsearcher.snippets.testcase.TestResult;
 import com.snippetsearcher.snippets.users.UserDirectory;
 
 // PUT /snippets/{id} contra la base real. Los otros servicios se simulan.
@@ -54,6 +59,9 @@ class UpdateSnippetTests {
 
 	@Autowired
 	private JdbcTemplate jdbc;
+
+	@Autowired
+	private TestCaseRepository tests;
 
 	@MockitoBean(name = "printscript")
 	private Language printScript;
@@ -222,5 +230,35 @@ class UpdateSnippetTests {
 		assertThat(snippet.name()).isEqualTo("Saludo");
 		assertThat(snippet.version()).isEqualTo("1.0");
 		assertThat(snippet.compliance()).isEqualTo(Compliance.COMPLIANT);
+	}
+
+	// US-16: al actualizar, se corren los tests del snippet y se guarda el
+	// resultado de cada uno.
+	@Test
+	void updatingRunsTheTestsAndSavesTheirResults() throws Exception {
+		var pasa = tests.save(new TestCase(UUID.randomUUID(), SALUDO, "pasa", List.of(), List.of("chau")));
+		var falla = tests.save(new TestCase(UUID.randomUUID(), SALUDO, "falla", List.of(), List.of("hola")));
+		when(printScript.evaluate(NEW_CODE, "1.0", List.of())).thenReturn(new Evaluation(List.of("chau"), List.of()));
+
+		update(SALUDO, "{\"content\": \"println(\\\"chau\\\");\"}").andExpect(status().isOk());
+
+		assertThat(tests.findById(pasa.id()).orElseThrow().lastResult()).isEqualTo(TestResult.SUCCESS);
+		assertThat(tests.findById(falla.id()).orElseThrow().lastResult()).isEqualTo(TestResult.FAIL);
+	}
+
+	// US-16: el resultado de los tests no bloquea ni revierte el update.
+	@Test
+	void ifTheTestsCannotRunTheUpdateIsSavedAnyway() throws Exception {
+		var test = tests.save(new TestCase(UUID.randomUUID(), SALUDO, "pasa", List.of(), List.of("chau")));
+		test.recordResult(TestResult.SUCCESS);
+		tests.save(test);
+		when(printScript.evaluate(anyString(), anyString(), anyList()))
+				.thenThrow(new ResourceAccessException("PrintScript no responde"));
+
+		update(SALUDO, "{\"content\": \"println(\\\"chau\\\");\"}").andExpect(status().isOk());
+
+		verify(storage).put(SALUDO.toString(), NEW_CODE);
+		// El resultado anterior ya no vale para el código nuevo.
+		assertThat(tests.findById(test.id()).orElseThrow().lastResult()).isNull();
 	}
 }

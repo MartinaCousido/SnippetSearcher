@@ -6,6 +6,8 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.util.List;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -45,6 +47,35 @@ class PrintScriptLanguageTests {
 		assertThat(diagnostics).containsExactly(new Diagnostic("MISSING_SEMICOLON", "Expected ';'",
 				new Range(new Position(1, 11), new Position(1, 11))));
 		server.verify();
+	}
+
+	@Test
+	void evaluatesWithTheInputsAndReadsTheOutputs() {
+		server.expect(requestTo("http://printscript-service/evaluate"))
+				.andExpect(method(HttpMethod.POST))
+				.andExpect(content().json("{\"code\": \"x\", \"version\": \"1.1\", \"inputs\": [\"Ana\"]}"))
+				.andRespond(withSuccess("{\"outputs\": [\"Hola Ana\"], \"diagnostics\": []}",
+						MediaType.APPLICATION_JSON));
+
+		var evaluation = language.evaluate("x", "1.1", List.of("Ana"));
+
+		assertThat(evaluation.outputs()).containsExactly("Hola Ana");
+		assertThat(evaluation.failed()).isFalse();
+		server.verify();
+	}
+
+	@Test
+	void anErrorWhileEvaluatingComesInTheDiagnostics() {
+		server.expect(requestTo("http://printscript-service/evaluate"))
+				.andRespond(withSuccess("""
+						{"outputs": ["antes"], "diagnostics": [{"rule": "INPUT_UNAVAILABLE", "message": "No input",
+						  "range": {"start": {"line": 2, "column": 1}, "end": {"line": 2, "column": 9}}}]}
+						""", MediaType.APPLICATION_JSON));
+
+		var evaluation = language.evaluate("x", "1.1", List.of());
+
+		assertThat(evaluation.outputs()).containsExactly("antes");
+		assertThat(evaluation.failed()).isTrue();
 	}
 
 	@Test

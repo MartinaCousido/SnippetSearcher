@@ -1,7 +1,7 @@
 @startuml secuencia-actualizar-snippet
 ' Actualizar un snippet y correr sus tests (US-2, US-4, US-16).
-' La actualización está implementada (#16). Faltan el lint en segundo plano
-' (#23) y los tests automáticos (#21). Los endpoints son los del README.
+' La actualización (#16) y los tests automáticos (#21) están implementados.
+' Falta el lint en segundo plano (#23). Los endpoints son los del README.
 
 title Actualizar snippet y correr sus tests (US-2, US-4, US-16)
 autonumber
@@ -39,25 +39,25 @@ else existe
         S -> ST : PUT /v1/asset/snippets/{id} (código nuevo)
         note right: si falla, los metadatos\nno cambian (502)
       end
-      S --> UI : 200 Snippet
-      UI --> Usuario : muestra el snippet
       S -> Q : publicar pedido de lint (#23)
 
-      == Tests automáticos (US-16, #21) ==
+      == Tests automáticos (US-16), en el mismo pedido ==
       loop por cada test del snippet
-        S -> PS : ejecutar(código, inputs)
-        PS --> S : outputs
-        S -> S : comparar con los outputs esperados
-        S -> DB : guardar el resultado
+        S -> PS : POST /evaluate { code, version, inputs }
+        PS --> S : { outputs, diagnostics }
+        S -> S : success si los outputs coinciden\nexactos y en orden; si no (o hubo\nun error al ejecutar), fail
+        S -> DB : guardar el resultado (lastResult)
       end
+      note right of S: si un test no se puede correr,\nqueda sin resultado; el cambio\nya está guardado
+      S --> UI : 200 Snippet
+      UI --> Usuario : muestra el snippet
     end
   end
 end
 
 note over S, DB
   El resultado de los tests no bloquea
-  ni revierte la actualización.
-  A definir: el endpoint de ejecución del
-  servicio de lenguaje (evaluate).
+  ni revierte la actualización (US-16):
+  un test en fail no impide guardar.
 end note
 @enduml
