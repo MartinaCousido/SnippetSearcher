@@ -2,6 +2,8 @@ package com.snippetsearcher.snippets.snippet;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -16,9 +18,12 @@ import com.snippetsearcher.snippets.language.UnsupportedLanguageException;
 @RestControllerAdvice
 public class SnippetErrors {
 
+	private static final Logger log = LoggerFactory.getLogger(SnippetErrors.class);
+
 	// El código no es válido: 400 con la regla, la línea y la columna (US-1).
 	@ExceptionHandler(InvalidSnippetException.class)
 	public ResponseEntity<InvalidSnippetResponse> invalidSnippet(InvalidSnippetException e) {
+		log.info("código inválido: {}", e.diagnostics().stream().map(d -> d.rule()).toList());
 		return ResponseEntity.badRequest().body(new InvalidSnippetResponse(e.diagnostics()));
 	}
 
@@ -44,12 +49,15 @@ public class SnippetErrors {
 
 	@ExceptionHandler(SnippetAccessDeniedException.class)
 	public ProblemDetail accessDenied(SnippetAccessDeniedException e) {
+		log.info("acceso denegado: {}", e.getMessage());
 		return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, e.getMessage());
 	}
 
 	// Falló otro servicio (PrintScript, Asset Service o Permission Service).
 	@ExceptionHandler(RestClientException.class)
-	public ProblemDetail serviceFailed() {
+	public ProblemDetail serviceFailed(RestClientException e) {
+		// Un servicio del que dependemos no respondió bien: es lo que hay que ver.
+		log.error("falló un servicio del que depende Snippet Service: {}", e.getMessage());
 		return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY,
 				"Un servicio del que depende Snippet Service no respondió bien. Probá de nuevo.");
 	}

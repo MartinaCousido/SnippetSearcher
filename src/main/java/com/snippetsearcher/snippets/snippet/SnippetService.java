@@ -75,6 +75,7 @@ public class SnippetService {
 				permissions.registerOwner(id);
 				return saved;
 			});
+			log.info("snippet creado: {} ({} {})", id, language.name(), language.version());
 			// Se lintea y se formatea en segundo plano (US-12, US-15): por ahora,
 			// pending.
 			requestAnalysis(id);
@@ -99,6 +100,7 @@ public class SnippetService {
 		// Los emails de los autores de la página, en un solo pedido a Auth0.
 		var emails = users.emails(found.getContent().stream().map(Snippet::author).toList());
 		var snippets = found.getContent().stream().map(snippet -> toResponse(snippet, emails)).toList();
+		log.info("snippets listados: {} de {} (relación {})", snippets.size(), found.getTotalElements(), relation);
 		return new SnippetPage(page, pageSize, found.getTotalElements(), snippets);
 	}
 
@@ -146,6 +148,7 @@ public class SnippetService {
 			storage.put(snippet.contentKey(), request.content());
 			return saved;
 		});
+		log.info("snippet actualizado: {}", id);
 		requestAnalysis(id);
 		runTests(updated, request.content());
 		return new SnippetResponse(id.toString(), updated.name(), updated.description(), updated.language(),
@@ -235,6 +238,7 @@ public class SnippetService {
 				storage.delete(snippet.formattedKey());
 			}
 		});
+		log.info("snippet borrado: {}", id);
 		try {
 			permissions.deleteAll(id);
 		} catch (RuntimeException e) {

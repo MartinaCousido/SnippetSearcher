@@ -16,6 +16,11 @@ services:
       DB_USER: ${SNIPPETS_DB_USER:?Falta SNIPPETS_DB_USER, copiá .env.example a .env}
       DB_PASSWORD: ${SNIPPETS_DB_PASSWORD:?Falta SNIPPETS_DB_PASSWORD, copiá .env.example a .env}
       ASSET_SERVICE_URL: http://asset-service:8080
+      ASSET_SERVICE_HEALTH_URL: http://asset-service:9090/actuator/health
+      # New Relic (#81): apagado en local, salvo que se pase la license key.
+      NEW_RELIC_AGENT_ENABLED: ${NEW_RELIC_AGENT_ENABLED:-false}
+      NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY:-}
+      NEW_RELIC_APP_NAME: snippet-service (local)
       # Solo existen si se levanta el sistema completo (docker-compose.sistema.yml).
       PERMISSION_SERVICE_URL: http://permission-service:8080
       PRINTSCRIPT_SERVICE_URL: http://printscript-service:8080

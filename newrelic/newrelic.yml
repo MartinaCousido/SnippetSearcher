@@ -1,0 +1,32 @@
+# Configuración del agente Java de New Relic (#81). Es la misma que usa el
+# Asset Service de la cátedra, más el envío del contexto de los logs (MDC).
+# El nombre de la app y la license key llegan por variable de entorno:
+#   NEW_RELIC_APP_NAME      por ambiente: "snippet-service (dev)" o "(prod)"
+#   NEW_RELIC_LICENSE_KEY   secret de los Environments de infra
+#   NEW_RELIC_AGENT_ENABLED false para apagarlo (por ejemplo, en local)
+common: &default_settings
+  app_name: snippet-service
+  log_file_name: STDOUT
+  log_level: info
+  # Traces entre servicios: Snippet Service → Permission, PrintScript, Asset.
+  distributed_tracing:
+    enabled: true
+  application_logging:
+    enabled: true
+    # El agente manda los logs del servicio a New Relic, con el trace.id.
+    forwarding:
+      enabled: true
+      # Y el contexto de cada línea (MDC): requestId, user, service.
+      context_data:
+        enabled: true
+    metrics:
+      enabled: true
+    local_decorating:
+      enabled: false
+  transaction_tracer:
+    enabled: true
+    record_sql: obfuscated
+  error_collector:
+    enabled: true
+  browser_monitoring:
+    auto_instrument: false

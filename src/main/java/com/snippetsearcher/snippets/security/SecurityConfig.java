@@ -34,6 +34,8 @@ public class SecurityConfig {
 						// El health lo usan los healthchecks de Docker, sin token.
 						// Desde afuera no se publica (ver Reverse proxy en infra).
 						.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
+						// El health del sistema, para los synthetics: solo UP o DOWN.
+						.requestMatchers(HttpMethod.GET, "/health").permitAll()
 						// Leer: los GET, correr un test y formatear sin guardar.
 						.requestMatchers(HttpMethod.GET, "/**").hasAuthority(READ)
 						.requestMatchers(HttpMethod.POST, "/snippets/*/tests/run", "/snippets/*/format").hasAuthority(READ)
