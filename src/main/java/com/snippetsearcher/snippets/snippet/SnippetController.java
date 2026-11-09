@@ -79,14 +79,19 @@ public class SnippetController {
 		return service.format(id, request.content());
 	}
 
-	// listSnippetDescriptors() de la UI. relation no lo manda la UI de la
-	// cátedra: por defecto, propios y compartidos.
+	// listSnippetDescriptors() de la UI (US-5). Sin relation, propios y
+	// compartidos. Filtros por nombre, lenguaje y validez, y orden por nombre,
+	// lenguaje o validez. Un valor que no existe es 400.
 	@GetMapping
 	public SnippetPage list(
 			@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(name = "page_size", defaultValue = "10") @Min(1) @Max(100) int pageSize,
 			@RequestParam(required = false) String name,
-			@RequestParam(defaultValue = "all") @Pattern(regexp = "owner|shared|all") String relation) {
-		return service.list(page, pageSize, name, relation);
+			@RequestParam(defaultValue = "all") @Pattern(regexp = "owner|shared|all") String relation,
+			@RequestParam(required = false) String language,
+			@RequestParam(required = false) @Pattern(regexp = SnippetQuery.COMPLIANCES) String compliance,
+			@RequestParam(required = false) @Pattern(regexp = SnippetQuery.SORTS) String sort,
+			@RequestParam(required = false) @Pattern(regexp = SnippetQuery.ORDERS) String order) {
+		return service.list(page, pageSize, new SnippetQuery(name, relation, language, compliance, sort, order));
 	}
 }

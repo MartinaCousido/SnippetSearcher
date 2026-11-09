@@ -25,6 +25,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.snippetsearcher.snippets.clients.Diagnostic;
+import com.snippetsearcher.snippets.clients.Diagnostic.Position;
+import com.snippetsearcher.snippets.clients.Diagnostic.Range;
 import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
 import com.snippetsearcher.snippets.security.TestUsers;
@@ -150,5 +153,78 @@ class ListSnippetsTests {
 		mvc.perform(get("/snippets").param("page_size", "0").with(TestUsers.ana())).andExpect(status().isBadRequest());
 		mvc.perform(get("/snippets").param("relation", "amigos").with(TestUsers.ana())).andExpect(status().isBadRequest());
 		verify(permissions, never()).accessibleSnippets("amigos");
+	}
+
+	// US-5: filtrar y ordenar por validez. Saludo queda compliant, bucle
+	// not-compliant y compartido sigue pending.
+	private void lint() {
+		var saludo = repository.findById(SALUDO).orElseThrow();
+		saludo.recordLint(saludo.requestLint(), List.of());
+		repository.save(saludo);
+		var bucle = repository.findById(BUCLE).orElseThrow();
+		bucle.recordLint(bucle.requestLint(), List.of(new Diagnostic("identifier_format", "camelCase",
+				new Range(new Position(1, 5), new Position(1, 9)))));
+		repository.save(bucle);
+	}
+
+	@Test
+	void filtersByCompliance() throws Exception {
+		lint();
+
+		mvc.perform(get("/snippets").param("compliance", "not-compliant").with(TestUsers.ana()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.count").value(1))
+				.andExpect(jsonPath("$.snippets[*].name").value(contains("bucle")));
+	}
+
+	@Test
+	void filtersByLanguage() throws Exception {
+		mvc.perform(get("/snippets").param("language", "printscript").with(TestUsers.ana()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.count").value(3));
+	}
+
+	@Test
+	void combinesFiltersWithTheName() throws Exception {
+		lint();
+
+		mvc.perform(get("/snippets").param("name", "sal").param("compliance", "pending").with(TestUsers.ana()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.count").value(0));
+		mvc.perform(get("/snippets").param("name", "sal").param("compliance", "compliant").with(TestUsers.ana()))
+				.andExpect(jsonPath("$.snippets[*].name").value(contains("Saludo")));
+	}
+
+	@Test
+	void sortsByComplianceAndThenByName() throws Exception {
+		lint();
+
+		mvc.perform(get("/snippets").param("sort", "compliance").with(TestUsers.ana()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.snippets[*].compliance").value(contains("compliant", "not-compliant", "pending")));
+		mvc.perform(get("/snippets").param("sort", "compliance").param("order", "desc").with(TestUsers.ana()))
+				.andExpect(jsonPath("$.snippets[*].compliance").value(contains("pending", "not-compliant", "compliant")));
+	}
+
+	@Test
+	void sortsByNameDescending() throws Exception {
+		mvc.perform(get("/snippets").param("order", "desc").with(TestUsers.ana()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.snippets[*].name").value(contains("Saludo", "compartido", "bucle")));
+	}
+
+	@Test
+	void sortsByLanguageAndThenByName() throws Exception {
+		mvc.perform(get("/snippets").param("sort", "language").with(TestUsers.ana()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.snippets[*].name").value(contains("bucle", "compartido", "Saludo")));
+	}
+
+	@Test
+	void unknownFilterOrSortValuesAreABadRequest() throws Exception {
+		mvc.perform(get("/snippets").param("compliance", "valido").with(TestUsers.ana())).andExpect(status().isBadRequest());
+		mvc.perform(get("/snippets").param("sort", "author").with(TestUsers.ana())).andExpect(status().isBadRequest());
+		mvc.perform(get("/snippets").param("order", "arriba").with(TestUsers.ana())).andExpect(status().isBadRequest());
+		mvc.perform(get("/snippets").param("language", "python").with(TestUsers.ana())).andExpect(status().isBadRequest());
 	}
 }

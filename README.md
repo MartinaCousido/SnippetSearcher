@@ -419,8 +419,7 @@ TestCase = { id, name, input: string[], output: string[], lastResult: "success" 
 
 ### Limitaciones conocidas
 
-- La UI no permite filtrar el listado por relación (propios, compartidos o ambos), que pide la US-5. El endpoint lo acepta (`relation`), pero la UI no lo manda: muestra los dos.
-- La UI tampoco permite filtrar ni ordenar por lenguaje o validez, que pide la US-5. El endpoint ordena por nombre. Se resuelve en #92 (endpoint) y SnippetSearcher-ui#38 (UI).
+- La UI todavía no permite elegir la relación (propios, compartidos o ambos) ni filtrar y ordenar por lenguaje o validez, que pide la US-5. El endpoint ya lo hace (#92); falta la UI (SnippetSearcher-ui#38).
 - En vivo (US-9) se corren solo los tests guardados: un test nuevo o con cambios sin guardar se corre con `POST /tests/run`, y muestra solo si pasa o falla, al final. La US-9 habla de correr un test del snippet, y un test sin guardar todavía no lo es (decidido el 2026-11-09).
 - El listado incluye el `content` de cada snippet, porque el tipo `Snippet` de la UI lo tiene. Cada página lee esos archivos del Snippet Storage.
 

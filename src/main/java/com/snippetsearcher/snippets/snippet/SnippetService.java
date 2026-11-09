@@ -7,7 +7,6 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -16,6 +15,7 @@ import com.snippetsearcher.snippets.analysis.AnalysisTask;
 import com.snippetsearcher.snippets.clients.PermissionClient;
 import com.snippetsearcher.snippets.clients.SnippetStorage;
 import com.snippetsearcher.snippets.language.LanguageCatalog;
+import com.snippetsearcher.snippets.language.UnsupportedLanguageException;
 import com.snippetsearcher.snippets.rules.RuleKind;
 import com.snippetsearcher.snippets.rules.RuleService;
 import com.snippetsearcher.snippets.security.CurrentUser;
@@ -90,13 +90,17 @@ public class SnippetService {
 
 	// Lista los snippets del usuario (US-5): los propios, los compartidos o
 	// todos, filtrados por nombre y ordenados por nombre. page empieza en 0.
-	public SnippetPage list(int page, int pageSize, String name, String relation) {
+	public SnippetPage list(int page, int pageSize, SnippetQuery query) {
+		if (query.language() != null && !query.language().isBlank()
+				&& languages.fileTypes().stream().noneMatch(type -> type.language().equals(query.language()))) {
+			throw new UnsupportedLanguageException("Lenguaje no soportado: " + query.language());
+		}
+		var relation = query.relation();
 		List<UUID> ids = permissions.accessibleSnippets(relation);
 		if (ids.isEmpty()) {
 			return new SnippetPage(page, pageSize, 0, List.of());
 		}
-		var found = repository.findByIdInAndNameContainingIgnoreCase(ids, name == null ? "" : name,
-				PageRequest.of(page, pageSize, Sort.by("name").ascending().and(Sort.by("id"))));
+		var found = repository.findAll(query.among(ids), PageRequest.of(page, pageSize, query.sortOrder()));
 		// Los emails de los autores de la página, en un solo pedido a Auth0.
 		var emails = users.emails(found.getContent().stream().map(Snippet::author).toList());
 		var snippets = found.getContent().stream().map(snippet -> toResponse(snippet, emails)).toList();
