@@ -64,6 +64,11 @@ public class Snippet {
 
 	// Clave del archivo formateado en el Snippet Storage. null si todavía no
 	// hay, o si no se pudo formatear.
+	// Con qué versión de la librería del lenguaje se lintearon por última vez
+	// (#93). null si todavía no se sabe.
+	@Column(name = "analyzed_with")
+	private String analyzedWith;
+
 	@Column(name = "formatted_key")
 	private String formattedKey;
 
@@ -117,9 +122,15 @@ public class Snippet {
 	// Guarda el resultado de un lint, si es de la última revisión pedida.
 	// Devuelve false si es viejo y se descartó.
 	public boolean recordLint(int revision, List<Diagnostic> violations) {
+		return recordLint(revision, violations, analyzedWith);
+	}
+
+	// Lo mismo, recordando con qué versión de la librería se analizó (#93).
+	public boolean recordLint(int revision, List<Diagnostic> violations, String libraryVersion) {
 		if (revision != lintRevision) {
 			return false;
 		}
+		this.analyzedWith = libraryVersion;
 		this.compliance = violations.isEmpty() ? Compliance.COMPLIANT : Compliance.NOT_COMPLIANT;
 		this.lintViolations.clear();
 		violations.forEach(violation -> this.lintViolations.add(LintViolation.from(violation)));
@@ -128,9 +139,16 @@ public class Snippet {
 
 	// Se agotaron los intentos de lintear esta revisión.
 	public boolean lintFailed(int revision) {
+		return lintFailed(revision, analyzedWith);
+	}
+
+	// Lo mismo, recordando con qué versión se intentó: no se vuelve a pedir
+	// hasta que cambie la versión o el snippet (#93).
+	public boolean lintFailed(int revision, String libraryVersion) {
 		if (revision != lintRevision) {
 			return false;
 		}
+		this.analyzedWith = libraryVersion;
 		this.compliance = Compliance.FAILED;
 		this.lintViolations.clear();
 		return true;
@@ -144,6 +162,10 @@ public class Snippet {
 		}
 		this.formattedKey = key;
 		return true;
+	}
+
+	public String analyzedWith() {
+		return analyzedWith;
 	}
 
 	public int lintRevision() {

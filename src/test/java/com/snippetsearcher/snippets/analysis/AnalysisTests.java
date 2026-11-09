@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -281,5 +282,32 @@ class AnalysisTests {
 
 		verify(storage).delete(SALUDO.toString());
 		verify(storage).delete(SALUDO + ".formatted");
+	}
+
+	// #93: el lint guarda con qué versión de la librería se hizo.
+	@Test
+	void theLintRemembersTheLibraryVersion() {
+		when(printScript.libraryVersion()).thenReturn("0.3.2");
+		when(printScript.lint(anyString(), anyString(), anyMap())).thenReturn(List.of());
+
+		worker.process(AnalysisTask.LINT, SALUDO, requested(AnalysisTask.LINT));
+
+		assertThat(saved().analyzedWith()).isEqualTo("0.3.2");
+		assertThat(saved().compliance()).isEqualTo(Compliance.COMPLIANT);
+	}
+
+	// #93: con una versión nueva del parser, un snippet guardado puede dejar
+	// de ser válido. Queda not-compliant con los errores de sintaxis, sin lintear.
+	@Test
+	void aSnippetThatIsNoLongerValidIsNotCompliantWithItsSyntaxErrors() throws Exception {
+		var syntax = new Diagnostic("MISSING_SEMICOLON", "Falta ;", new Range(new Position(1, 30), new Position(1, 31)));
+		when(printScript.validate(CODE, "1.1")).thenReturn(List.of(syntax));
+
+		worker.process(AnalysisTask.LINT, SALUDO, requested(AnalysisTask.LINT));
+
+		verify(printScript, never()).lint(anyString(), anyString(), anyMap());
+		assertThat(saved().compliance()).isEqualTo(Compliance.NOT_COMPLIANT);
+		mvc.perform(get("/snippets/{id}", SALUDO).with(TestUsers.ana()))
+				.andExpect(jsonPath("$.lintViolations[0].rule").value("MISSING_SEMICOLON"));
 	}
 }

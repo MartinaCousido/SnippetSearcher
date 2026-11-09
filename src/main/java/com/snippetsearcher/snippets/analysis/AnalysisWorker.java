@@ -9,6 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.snippetsearcher.snippets.clients.SnippetStorage;
 import com.snippetsearcher.snippets.language.LanguageCatalog;
+import com.snippetsearcher.snippets.language.LanguageCatalog.ResolvedLanguage;
+import com.snippetsearcher.snippets.snippet.Snippet;
 import com.snippetsearcher.snippets.rules.RuleKind;
 import com.snippetsearcher.snippets.rules.RuleService;
 import com.snippetsearcher.snippets.snippet.InvalidSnippetException;
@@ -25,13 +27,15 @@ public class AnalysisWorker {
 	private final SnippetStorage storage;
 	private final LanguageCatalog languages;
 	private final RuleService rules;
+	private final ParserVersions versions;
 
 	public AnalysisWorker(SnippetRepository snippets, SnippetStorage storage, LanguageCatalog languages,
-			RuleService rules) {
+			RuleService rules, ParserVersions versions) {
 		this.snippets = snippets;
 		this.storage = storage;
 		this.languages = languages;
 		this.rules = rules;
+		this.versions = versions;
 	}
 
 	// Si termina sin error, el mensaje se confirma. Si falla, queda pendiente
@@ -46,10 +50,7 @@ public class AnalysisWorker {
 		var language = languages.resolve(snippet.language(), snippet.version());
 		var code = storage.get(snippet.contentKey()).orElse("");
 		if (task == AnalysisTask.LINT) {
-			var violations = language.language().lint(code, language.version(),
-					rules.activeRules(snippet.author(), RuleKind.LINT));
-			snippet.recordLint(revision, violations);
-			log.info("lint del snippet {}: {} reglas incumplidas", snippetId, violations.size());
+			lint(snippet, revision, language, code);
 			return;
 		}
 		var formatted = language.language().format(code, language.version(),
@@ -64,13 +65,28 @@ public class AnalysisWorker {
 		log.info("formateo del snippet {} guardado", snippetId);
 	}
 
+	// Primero valida con el parser: con una versión nueva de la librería, un
+	// snippet guardado puede dejar de ser válido. Si no lo es, queda
+	// NOT_COMPLIANT con los errores de sintaxis, como reglas incumplidas (#93).
+	// Si es válido, se lintea con las reglas del owner.
+	private void lint(Snippet snippet, int revision, ResolvedLanguage language, String code) {
+		var libraryVersion = versions.current(snippet.language());
+		var errors = language.language().validate(code, language.version());
+		var violations = errors.isEmpty()
+				? language.language().lint(code, language.version(), rules.activeRules(snippet.author(), RuleKind.LINT))
+				: errors;
+		snippet.recordLint(revision, violations, libraryVersion);
+		log.info("lint del snippet {} con la librería {}: {} problemas{}", snippet.id(), libraryVersion,
+				violations.size(), errors.isEmpty() ? "" : " (ya no es válido)");
+	}
+
 	// Se agotaron los intentos: el lint queda en FAILED, y el snippet queda
 	// sin versión formateada (ver Cola de mensajes en Decisiones técnicas).
 	@Transactional
 	public void giveUp(AnalysisTask task, UUID snippetId, int revision) {
 		snippets.findById(snippetId).ifPresent(snippet -> {
 			if (task == AnalysisTask.LINT) {
-				snippet.lintFailed(revision);
+				snippet.lintFailed(revision, versions.current(snippet.language()));
 			} else {
 				snippet.recordFormatted(revision, null);
 			}
@@ -82,7 +98,7 @@ public class AnalysisWorker {
 		return contentKey + ".formatted";
 	}
 
-	private static int currentRevision(AnalysisTask task, com.snippetsearcher.snippets.snippet.Snippet snippet) {
+	private static int currentRevision(AnalysisTask task, Snippet snippet) {
 		return task == AnalysisTask.LINT ? snippet.lintRevision() : snippet.formatRevision();
 	}
 }
