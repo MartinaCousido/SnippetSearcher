@@ -25,6 +25,9 @@ class LanguagesEndpointTests {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(1))
 				.andExpect(jsonPath("$[0].language").value("printscript"))
-				.andExpect(jsonPath("$[0].extension").value("ps"));
+				.andExpect(jsonPath("$[0].extension").value("ps"))
+				.andExpect(jsonPath("$[0].versions[0]").value("1.0"))
+				.andExpect(jsonPath("$[0].versions[1]").value("1.1"))
+				.andExpect(jsonPath("$[0].defaultVersion").value("1.1"));
 	}
 }
