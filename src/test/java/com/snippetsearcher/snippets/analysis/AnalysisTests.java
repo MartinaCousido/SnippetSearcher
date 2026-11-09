@@ -2,6 +2,7 @@ package com.snippetsearcher.snippets.analysis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -129,7 +130,7 @@ class AnalysisTests {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.compliance").value("pending"));
 
-		var created = snippets.findAll().stream().filter(s -> s.name().equals("nuevo")).findFirst().orElseThrow();
+		var created = snippets.findAll().stream().filter(s -> "nuevo".equals(s.name())).findFirst().orElseThrow();
 		verify(queue).publish(AnalysisTask.LINT, created.id(), 1);
 		verify(queue).publish(AnalysisTask.FORMAT, created.id(), 1);
 	}
@@ -268,7 +269,7 @@ class AnalysisTests {
 
 	@Test
 	void aSnippetThatNoLongerExistsIsSkipped() {
-		worker.process(AnalysisTask.LINT, UUID.randomUUID(), 1);
+		assertDoesNotThrow(() -> worker.process(AnalysisTask.LINT, UUID.randomUUID(), 1));
 	}
 
 	@Test
