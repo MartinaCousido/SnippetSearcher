@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import tools.jackson.databind.json.JsonMapper;
 import com.snippetsearcher.snippets.clients.Diagnostic.Position;
 import com.snippetsearcher.snippets.clients.Diagnostic.Range;
 
@@ -29,7 +30,7 @@ class PrintScriptLanguageTests {
 	void setUp() {
 		RestClient.Builder builder = RestClient.builder();
 		server = MockRestServiceServer.bindTo(builder).build();
-		language = new PrintScriptLanguage(builder, "http://printscript-service");
+		language = new PrintScriptLanguage(builder, "http://printscript-service", JsonMapper.builder().build());
 	}
 
 	@Test
