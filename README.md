@@ -588,6 +588,18 @@ Usuario y contraseña son los del `.env`. Si se borran los volúmenes (`down -v`
 
 En cada PR hacia `dev` o `main`, el CI (`.github/workflows/ci.yml`) corre `./gradlew build` con una base Postgres 17 descartable. Su check se llama `compilar-y-testear` y es obligatorio para mergear.
 
+### Linter y cobertura
+
+`./gradlew build` también corre el linter y mide la cobertura. Si algo falla, el build falla, y con él el CI. Ver **Linter y cobertura** en [Decisiones técnicas](#decisiones-técnicas).
+
+| Herramienta | Qué revisa | Configuración |
+|---|---|---|
+| Checkstyle | Nombres y construcciones que suelen ser errores | `config/checkstyle/checkstyle.xml` |
+| PMD | Errores probables y malas prácticas | `config/pmd/ruleset.xml` (código) y `config/pmd/ruleset-test.xml` (tests) |
+| JaCoCo | Cobertura: mínimo **80 % de líneas**, sin contar `SnippetServiceApplication` | `build.gradle` |
+
+Los reportes quedan en `build/reports/` (`checkstyle/`, `pmd/` y `jacoco/test/html/index.html`).
+
 ## Estructura del repositorio
 
 ```

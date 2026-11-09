@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="SnippetSearcher (tests)"
+    xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+  <description>
+    PMD para los tests (#88): las mismas reglas que ruleset.xml (PMD no deja
+    importar un ruleset por ruta relativa), con estos ajustes.
+      - UnitTestShouldIncludeAssert: los tests verifican con andExpect(...) de
+        MockMvc, verify(...) de Mockito y await(...), que PMD no reconoce como
+        assert si no se lo dice.
+      - AvoidUsingHardCodedIP: los tests de /health usan 127.0.0.1 a propósito,
+        como una dirección que no responde.
+      - AvoidDuplicateLiterals: en un test se lee mejor la ruta o el header
+        escrito en cada pedido que una constante.
+      - TestClassWithoutTestCases: TestUsers arma los usuarios de los tests y no
+        es una clase de tests.
+  </description>
+
+  <rule ref="category/java/errorprone.xml">
+    <exclude name="AvoidFieldNameMatchingMethodName" />
+    <exclude name="AvoidCatchingGenericException" />
+    <exclude name="NullAssignment" />
+    <exclude name="AvoidDuplicateLiterals" />
+    <exclude name="TestClassWithoutTestCases" />
+  </rule>
+
+  <rule ref="category/java/bestpractices.xml">
+    <exclude name="GuardLogStatement" />
+    <exclude name="AvoidUsingHardCodedIP" />
+    <exclude name="UnitTestShouldIncludeAssert" />
+    <exclude name="UnitTestAssertionsShouldIncludeMessage" />
+    <exclude name="UnitTestContainsTooManyAsserts" />
+  </rule>
+
+  <rule ref="category/java/design.xml/CyclomaticComplexity">
+    <properties>
+      <property name="classReportLevel" value="80" />
+      <property name="methodReportLevel" value="10" />
+    </properties>
+  </rule>
+
+  <rule ref="category/java/design.xml/NPathComplexity">
+    <properties>
+      <property name="reportLevel" value="200" />
+    </properties>
+  </rule>
+
+  <rule ref="category/java/bestpractices.xml/UnitTestShouldIncludeAssert">
+    <properties>
+      <property name="extraAssertMethodNames" value="andExpect,verify,await" />
+    </properties>
+  </rule>
+
+</ruleset>
