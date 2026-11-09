@@ -122,20 +122,23 @@ public class RuleService {
 				}
 				yield text;
 			}
-			case "number" -> {
-				int number;
-				try {
-					number = value instanceof Number n ? n.intValue() : Integer.parseInt(value.toString().trim());
-				} catch (NumberFormatException e) {
-					throw new InvalidRulesException("La regla '" + rule.name() + "' pide un número, no '" + value + "'");
-				}
-				if (number < 0) {
-					throw new InvalidRulesException("La regla '" + rule.name() + "' no acepta números negativos");
-				}
-				yield number;
-			}
+			case "number" -> numberOf(rule, value);
 			default -> null;
 		};
+	}
+
+	// Un número entero y no negativo. 400 si no lo es.
+	private static int numberOf(CatalogRule rule, Object value) {
+		int number;
+		try {
+			number = value instanceof Number n ? n.intValue() : Integer.parseInt(value.toString().trim());
+		} catch (NumberFormatException e) {
+			throw new InvalidRulesException("La regla '" + rule.name() + "' pide un número, no '" + value + "'", e);
+		}
+		if (number < 0) {
+			throw new InvalidRulesException("La regla '" + rule.name() + "' no acepta números negativos");
+		}
+		return number;
 	}
 
 	private static void requireNoOpposites(Map<String, CatalogRule> catalog, Map<String, RuleResponse> rules) {

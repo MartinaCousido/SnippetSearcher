@@ -51,11 +51,17 @@ public class TestCase {
 		this.id = id;
 		this.snippetId = snippetId;
 		this.createdAt = Instant.now();
-		change(name, inputs, outputs);
+		apply(name, inputs, outputs);
 	}
 
 	// Cambiar el test borra su último resultado: era de otros inputs u outputs.
 	public void change(String name, List<String> inputs, List<String> outputs) {
+		apply(name, inputs, outputs);
+	}
+
+	// El constructor no llama a change(): JPA necesita que la clase y sus métodos
+	// se puedan sobrescribir, y un constructor no debe llamar a esos métodos.
+	private void apply(String name, List<String> inputs, List<String> outputs) {
 		this.name = name;
 		this.inputs = new ArrayList<>(inputs);
 		this.outputs = new ArrayList<>(outputs);

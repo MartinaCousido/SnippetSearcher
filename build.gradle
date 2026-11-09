@@ -1,5 +1,9 @@
 plugins {
 	id 'java'
+	// Linter y cobertura (#88). Ver "Linter y cobertura" en Decisiones técnicas.
+	id 'checkstyle'
+	id 'pmd'
+	id 'jacoco'
 	id 'org.springframework.boot' version '4.1.1'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
@@ -94,4 +98,66 @@ tasks.register('copyNewRelic', Sync) {
 // el Dockerfile copia el único jar que queda en build/libs.
 tasks.named('jar') {
 	enabled = false
+}
+
+// Linter: Checkstyle (convenciones) y PMD (errores probables), con la
+// configuración de la librería PrintScript adaptada a este servicio. Versiones
+// fijas: el mismo código tiene que dar el mismo resultado en cualquier máquina.
+// Cualquier violación hace fallar ./gradlew build, y con él el CI.
+checkstyle {
+	toolVersion = '10.21.0'
+	configFile = file('config/checkstyle/checkstyle.xml')
+	ignoreFailures = false
+	maxWarnings = 0
+}
+
+pmd {
+	toolVersion = '7.26.0'
+	ruleSetFiles = files('config/pmd/ruleset.xml')
+	// Sin esto, el plugin suma su ruleset por defecto al nuestro.
+	ruleSets = []
+	ignoreFailures = false
+	consoleOutput = true
+}
+
+tasks.named('pmdTest') {
+	ruleSetFiles = files('config/pmd/ruleset-test.xml')
+}
+
+// Cobertura: JaCoCo, con un mínimo de 80 % de líneas. Solo queda afuera la
+// clase que arranca Spring, que no tiene lógica.
+jacoco {
+	toolVersion = '0.8.14'
+}
+
+def fueraDeCobertura = ['**/SnippetServiceApplication.class']
+
+tasks.named('jacocoTestReport') {
+	dependsOn tasks.named('test')
+	reports {
+		xml.required = true
+		html.required = true
+	}
+	classDirectories.setFrom(files(classDirectories.files.collect { fileTree(it) { exclude fueraDeCobertura } }))
+}
+
+tasks.named('jacocoTestCoverageVerification') {
+	dependsOn tasks.named('jacocoTestReport')
+	violationRules {
+		rule {
+			limit {
+				counter = 'LINE'
+				minimum = 0.80
+			}
+		}
+	}
+	classDirectories.setFrom(files(classDirectories.files.collect { fileTree(it) { exclude fueraDeCobertura } }))
+}
+
+tasks.named('test') {
+	finalizedBy tasks.named('jacocoTestReport')
+}
+
+tasks.named('check') {
+	dependsOn tasks.named('jacocoTestCoverageVerification')
 }

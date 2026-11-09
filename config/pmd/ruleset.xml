@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="SnippetSearcher"
+    xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+  <description>
+    Análisis estático de Snippet Service (#88). Checkstyle pregunta si el
+    código está escrito como acordamos; PMD pregunta si es una buena idea.
+    Es el ruleset de la librería PrintScript: las categorías completas de
+    errorprone y bestpractices, más dos reglas de complejidad de design.
+    Ver "Linter y cobertura" en Decisiones técnicas de SnippetSearcher.
+
+    Igual que en la librería, quedan afuera:
+      - codestyle, documentation y design enteras: opinan de forma, Javadoc
+        y arquitectura, que ya deciden checkstyle.xml, los tests y el README.
+      - UnitTestAssertionsShouldIncludeMessage y UnitTestContainsTooManyAsserts:
+        los tests se nombran por lo que verifican y revisan varias propiedades
+        del mismo resultado en un solo test.
+
+    Además, se sacan dos reglas que no encajan con el estilo de los servicios:
+      - AvoidFieldNameMatchingMethodName: las entidades exponen sus campos con
+        métodos del mismo nombre (snippetId(), userId()), como los records.
+      - GuardLogStatement: con los {} de SLF4J el mensaje no se arma si el
+        nivel está apagado; el guard solo ahorraría llamadas baratas como size().
+
+    Y tres que en Snippet Service marcan código hecho a propósito:
+      - AvoidCatchingGenericException: el servicio atrapa RuntimeException en
+        los bordes, para deshacer (borrar el archivo si falla guardar), seguir
+        (un test que no corre no frena el update, US-16), reintentar (la cola de
+        Redis) o responder DOWN en /health. Siempre lo loguea o lo vuelve a tirar.
+      - TestClassWithoutTestCases: el paquete testcase/ es el de los tests de un
+        snippet (US-8). Sus clases se llaman TestCase, TestRunner… y no son tests.
+      - NullAssignment: borrar el último resultado de un test (lastResult = null)
+        es parte del modelo: la columna acepta null.
+
+    Los tests usan ruleset-test.xml, que parte de este.
+  </description>
+
+  <rule ref="category/java/errorprone.xml">
+    <exclude name="AvoidFieldNameMatchingMethodName" />
+    <exclude name="AvoidCatchingGenericException" />
+    <exclude name="NullAssignment" />
+    <exclude name="EmptyCatchBlock" />
+    <exclude name="TestClassWithoutTestCases" />
+  </rule>
+
+  <rule ref="category/java/bestpractices.xml">
+    <exclude name="GuardLogStatement" />
+    <exclude name="UnitTestAssertionsShouldIncludeMessage" />
+    <exclude name="UnitTestContainsTooManyAsserts" />
+  </rule>
+
+  <rule ref="category/java/design.xml/CyclomaticComplexity">
+    <properties>
+      <property name="classReportLevel" value="80" />
+      <property name="methodReportLevel" value="10" />
+    </properties>
+  </rule>
+
+  <rule ref="category/java/design.xml/NPathComplexity">
+    <properties>
+      <property name="reportLevel" value="200" />
+    </properties>
+  </rule>
+
+</ruleset>
