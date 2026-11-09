@@ -44,7 +44,8 @@ public class LanguageCatalog {
 
 	public List<FileType> fileTypes() {
 		return configs.entrySet().stream()
-				.map(entry -> new FileType(entry.getKey(), entry.getValue().extension()))
+				.map(entry -> new FileType(entry.getKey(), entry.getValue().extension(),
+						entry.getValue().versions(), entry.getValue().defaultVersion()))
 				.toList();
 	}
 
@@ -55,6 +56,8 @@ public class LanguageCatalog {
 	}
 
 	// Lo que muestra la UI: el lenguaje y la extensión de sus archivos.
-	public record FileType(String language, String extension) {
+	// GET /languages: cada lenguaje con su extensión, sus versiones y la que
+	// se usa si no se elige ninguna (la UI las ofrece al crear y editar, #37).
+	public record FileType(String language, String extension, List<String> versions, String defaultVersion) {
 	}
 }
