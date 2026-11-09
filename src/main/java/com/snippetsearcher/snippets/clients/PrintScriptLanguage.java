@@ -33,6 +33,12 @@ public class PrintScriptLanguage implements Language {
 	}
 
 	@Override
+	public String libraryVersion() {
+		var response = client.get().uri("/version").retrieve().body(VersionResponse.class);
+		return response == null ? null : response.library();
+	}
+
+	@Override
 	public List<Diagnostic> validate(String code, String version) {
 		var response = client.post()
 				.uri("/validate")
@@ -107,5 +113,8 @@ public class PrintScriptLanguage implements Language {
 	@Override
 	public LiveExecution executeLive(String code, String version, List<String> inputs, LiveListener listener) {
 		return PrintScriptLiveExecution.start(webSocketClient, executeUri, json, code, version, inputs, listener);
+	}
+
+	private record VersionResponse(String library) {
 	}
 }

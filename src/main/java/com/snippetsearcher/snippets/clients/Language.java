@@ -9,6 +9,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 // interfaz, nunca un lenguaje concreto. Recibe el código, no el id del snippet.
 public interface Language {
 
+	// La versión de la librería del lenguaje (GET /version), por ejemplo
+	// "0.3.2". Cuando cambia, se vuelven a validar todos los snippets de ese
+	// lenguaje (#93).
+	String libraryVersion();
+
 	// Revisa sintaxis y semántica sin ejecutar. Lista vacía = el código es válido.
 	List<Diagnostic> validate(String code, String version);
 
