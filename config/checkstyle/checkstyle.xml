@@ -1,0 +1,85 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<!--
+  Convenciones de código de Snippet Service (#88).
+
+  Parte de la configuración de la librería PrintScript (config/checkstyle de
+  MartinaCousido/PrintScript), con un solo cambio: acá se indenta con tabs,
+  como generó Spring Initializr, así que no está FileTabCharacter. No hay
+  formateador (Spotless): Checkstyle mira cómo se llaman las cosas y qué
+  construcciones son un error probable, no el formato.
+
+  Ver "Linter y cobertura" en Decisiones técnicas de SnippetSearcher.
+
+  Deliberadamente NO están (mismo criterio que la librería):
+    - MissingSwitchDefault: un switch exhaustivo sobre un enum o tipo sellado
+      no necesita default, y así el compilador avisa si aparece un caso nuevo.
+    - Javadoc*: el comportamiento lo fijan los tests.
+    - MagicNumber: ruido en los tests y en los códigos HTTP.
+-->
+<module name="Checker">
+    <property name="severity" value="error"/> <!-- cualquier incumplimiento de cualquier regla es un error, no un warning -->
+    <property name="fileExtensions" value="java"/> <!-- solo se miran archivos java -->
+
+    <!--
+      La clase que arranca Spring (@SpringBootApplication) solo tiene main, pero
+      Spring necesita instanciarla: no puede tener el constructor privado.
+    -->
+    <module name="SuppressionSingleFilter">
+        <property name="files" value="Application\.java$"/>
+        <property name="checks" value="HideUtilityClassConstructor"/>
+    </module>
+
+    <module name="NewlineAtEndOfFile"/> <!-- todo archivo tiene que terminar con un salto de linea -->
+
+    <module name="TreeWalker">
+
+        <!-- imports -->
+        <module name="AvoidStarImport"/> <!-- nada de import java.util.* , obliga a que los imports sean explícitos -->
+
+        <!-- nombres -->
+        <module name="PackageName">
+            <property name="format" value="^[a-z]+(\.[a-z][a-z0-9]*)*$"/>
+        </module>
+        <module name="TypeName"/>
+        <module name="MethodName"/>
+        <module name="MemberName"/>
+        <module name="ParameterName"/>
+        <module name="LocalVariableName"/>
+        <!--
+          El logger de cada clase se llama log, como en el resto de los servicios
+          Spring: es la única constante que no va en mayúsculas.
+        -->
+        <module name="ConstantName">
+            <property name="format" value="^(log|[A-Z][A-Z0-9]*(_[A-Z0-9]+)*)$"/>
+        </module>
+        <!--
+          ConstantName no cubre los valores de un enum, y Checkstyle no tiene una
+          regla dedicada para eso: sin esto, un Compliance.pending entra sin que nadie
+          lo frene. Se resuelve con MatchXpath, que permite consultar el árbol
+          directamente. El patrón es el mismo que usa ConstantName.
+        -->
+        <module name="MatchXpath">
+            <property name="query" value="//ENUM_CONSTANT_DEF/IDENT[not(matches(@text, '^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$'))]"/>
+            <message key="matchxpath.match" value="Los valores de un enum van en mayúsculas separadas por guion bajo"/>
+        </module>
+
+        <!-- forma del código -->
+        <module name="NeedBraces"/> <!-- if, else, for, while, do siempre con llaves, aunque el cuerpo sea una línea. -->
+        <module name="UpperEll"/> <!-- 100L y no 100l, que se confunde con 1001. -->
+        <module name="ArrayTypeStyle"/> <!-- los corchetes van pegados al tipo: String[] nombres -->
+
+        <!-- errores probables -->
+        <module name="EmptyStatement"/> <!-- un ';' suelto -->
+        <module name="EqualsHashCode"/> <!-- si redefinís equals sin redefinir hashCode (o al revés), el objeto se rompe adentro de cualquier HashMap o HashSet -->
+        <module name="SimplifyBooleanExpression"/> <!-- if (x == true) en vez de if (x) -->
+        <module name="SimplifyBooleanReturn"/> <!-- if (x) { return true; } else { return false; } en vez de return x; -->
+        <module name="StringLiteralEquality"/> <!-- comparar strings con == en vez de .equals() -->
+        <module name="HideUtilityClassConstructor"/> <!-- una clase que solo tiene métodos estáticos no puede tener constructor público. Si nadie la va a instanciar, el constructor tiene que ser privado -->
+        <module name="FallThrough"/>
+
+    </module>
+</module>

@@ -1,11 +1,17 @@
 package com.snippetsearcher.snippets.clients;
 
+import java.net.URI;
+
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.socket.client.WebSocketClient;
+import org.springframework.web.socket.client.standard.StandardWebSocketClient;
+
+import tools.jackson.databind.json.JsonMapper;
 
 // Language para PrintScript: le pide todo por HTTP al servicio de PrintScript
 // (repo SnippetPrintScript). El nombre del bean es el del lenguaje en
@@ -14,9 +20,16 @@ import org.springframework.web.client.RestClient;
 public class PrintScriptLanguage implements Language {
 
 	private final RestClient client;
+	private final WebSocketClient webSocketClient = new StandardWebSocketClient();
+	private final URI executeUri;
+	private final JsonMapper json;
 
-	public PrintScriptLanguage(RestClient.Builder builder, @Value("${printscript-service.url}") String baseUrl) {
+	public PrintScriptLanguage(RestClient.Builder builder, @Value("${printscript-service.url}") String baseUrl,
+			JsonMapper json) {
 		this.client = builder.baseUrl(baseUrl).build();
+		// El WebSocket /execute está en el mismo servicio: http → ws.
+		this.executeUri = URI.create(baseUrl.replaceFirst("^http", "ws") + "/execute");
+		this.json = json;
 	}
 
 	@Override
@@ -89,5 +102,10 @@ public class PrintScriptLanguage implements Language {
 	}
 
 	private record ValidateResponse(List<Diagnostic> diagnostics) {
+	}
+
+	@Override
+	public LiveExecution executeLive(String code, String version, List<String> inputs, LiveListener listener) {
+		return PrintScriptLiveExecution.start(webSocketClient, executeUri, json, code, version, inputs, listener);
 	}
 }
