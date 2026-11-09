@@ -100,7 +100,7 @@ public class SnippetService {
 		if (ids.isEmpty()) {
 			return new SnippetPage(page, pageSize, 0, List.of());
 		}
-		var found = repository.findAll(query.among(ids), PageRequest.of(page, pageSize, query.sortOrder()));
+		var found = repository.findAll(query.among(ids), PageRequest.of(page, pageSize));
 		// Los emails de los autores de la página, en un solo pedido a Auth0.
 		var emails = users.emails(found.getContent().stream().map(Snippet::author).toList());
 		var snippets = found.getContent().stream().map(snippet -> toResponse(snippet, emails)).toList();

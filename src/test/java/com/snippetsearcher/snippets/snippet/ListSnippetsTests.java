@@ -227,4 +227,26 @@ class ListSnippetsTests {
 		mvc.perform(get("/snippets").param("order", "arriba").with(TestUsers.ana())).andExpect(status().isBadRequest());
 		mvc.perform(get("/snippets").param("language", "python").with(TestUsers.ana())).andExpect(status().isBadRequest());
 	}
+
+	// La validez va de la mejor a la peor, no por orden alfabético: failed (no
+	// se pudo analizar) queda último, después de pending.
+	@Test
+	void sortsComplianceFromBestToWorst() throws Exception {
+		lint();
+		var compartido = repository.findById(COMPARTIDO).orElseThrow();
+		compartido.lintFailed(compartido.requestLint());
+		repository.save(compartido);
+
+		mvc.perform(get("/snippets").param("sort", "compliance").with(TestUsers.ana()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.snippets[*].compliance").value(contains("compliant", "not-compliant", "failed")));
+	}
+
+	// A igual valor, el desempate por nombre sigue el sentido pedido.
+	@Test
+	void tiesFollowTheOrder() throws Exception {
+		mvc.perform(get("/snippets").param("sort", "language").param("order", "desc").with(TestUsers.ana()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.snippets[*].name").value(contains("Saludo", "compartido", "bucle")));
+	}
 }
