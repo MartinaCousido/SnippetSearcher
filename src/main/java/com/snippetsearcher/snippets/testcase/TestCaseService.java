@@ -91,6 +91,17 @@ public class TestCaseService {
 		return new RunTestResponse(result);
 	}
 
+	// Guarda el resultado de un test corrido en vivo (US-9), si el test sigue
+	// igual que cuando se corrió: si mientras tanto lo cambiaron o lo borraron,
+	// el resultado ya no le corresponde.
+	@Transactional
+	public void recordLiveResult(UUID snippetId, UUID testId, List<String> inputs, List<String> outputs,
+			TestResult result) {
+		tests.findByIdAndSnippetId(testId, snippetId)
+				.filter(test -> test.inputs().equals(inputs) && test.outputs().equals(outputs))
+				.ifPresent(test -> test.recordResult(result));
+	}
+
 	// Corre todos los tests de un snippet recién actualizado y guarda el
 	// resultado de cada uno (US-16). Nunca falla: el update ya se guardó, y
 	// la US-16 pide que el resultado no lo bloquee ni lo revierta. Si un test

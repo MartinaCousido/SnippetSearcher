@@ -36,6 +36,10 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
 						// El health del sistema, para los synthetics: solo UP o DOWN.
 						.requestMatchers(HttpMethod.GET, "/health").permitAll()
+						// La ejecución en vivo (US-9, US-10) abre un WebSocket: el
+						// navegador no deja mandar el token en el handshake, así que
+						// llega en el primer mensaje y lo revisa LiveExecutionService.
+						.requestMatchers(HttpMethod.GET, "/snippets/*/execute").permitAll()
 						// Leer: los GET, correr un test y formatear sin guardar.
 						.requestMatchers(HttpMethod.GET, "/**").hasAuthority(READ)
 						.requestMatchers(HttpMethod.POST, "/snippets/*/tests/run", "/snippets/*/format").hasAuthority(READ)
